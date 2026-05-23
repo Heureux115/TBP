@@ -9,6 +9,7 @@ function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") ?? "";
+  const next = searchParams.get("next") ?? "/dashboard";
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -53,8 +54,8 @@ function VerifyEmailContent() {
 
     try {
       await verifyEmail({ email, token: code });
-      setMessage("Email verified. Redirecting to login...");
-      setTimeout(() => router.push("/login"), 800);
+      setMessage("Email đã được xác thực. Đang chuyển tới đăng nhập...");
+      setTimeout(() => router.push(`/login?next=${encodeURIComponent(next)}`), 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Mã xác thực không hợp lệ.");
     } finally {

@@ -22,6 +22,23 @@ export default function LoginPage() {
     try {
       const result = await login({ email, password });
       saveTokens(result);
+      const next = new URLSearchParams(window.location.search).get("next");
+
+      if (next) {
+        router.push(next);
+        return;
+      }
+
+      if (result.user.role === "ADMIN" || result.user.role === "SUPER_ADMIN") {
+        router.push("/admin/dashboard");
+        return;
+      }
+
+      if (result.user.role === "TUTOR") {
+        router.push("/tutor/dashboard");
+        return;
+      }
+
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng nhập thất bại.");

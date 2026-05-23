@@ -21,6 +21,10 @@ model User {
   updatedAt                      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt                      DateTime?      @map("deleted_at") @db.Timestamptz(6)
   refreshTokens                  RefreshToken[]
+  tutorProfile                   TutorProfile?
+  uploadedTutorDocuments         TutorDocument[] @relation("TutorDocumentUploader")
+  reviewedTutorDocuments         TutorDocument[] @relation("TutorDocumentReviewer")
+  adminAuditLogs                 AdminAuditLog[] @relation("AdminAuditActor")
 
   @@map("users")
 }
@@ -40,6 +44,106 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+model TutorProfile {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  userId                   String                  @unique @map("user_id") @db.Uuid
+  headline                 String?
+  bio                      String?
+  introVideoUrl            String?                 @map("intro_video_url")
+  experienceYears          Int?                    @map("experience_years")
+  hourlyRate               Decimal?                @map("hourly_rate") @db.Decimal(12, 2)
+  teachingMode             TeachingMode            @default(BOTH) @map("teaching_mode")
+  locationCity             String?                 @map("location_city")
+  locationDistrict         String?                 @map("location_district")
+  verificationStatus       TutorVerificationStatus @default(DRAFT) @map("verification_status")
+  verificationSubmittedAt  DateTime?               @map("verification_submitted_at") @db.Timestamptz(6)
+  approvedAt               DateTime?               @map("approved_at") @db.Timestamptz(6)
+  rejectedAt               DateTime?               @map("rejected_at") @db.Timestamptz(6)
+  rejectionReason          String?                 @map("rejection_reason")
+  ratingAvg                Decimal                 @default(0) @map("rating_avg") @db.Decimal(3, 2)
+  totalSessions            Int                     @default(0) @map("total_sessions")
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  user                     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjects                 TutorSubject[]
+  documents                TutorDocument[]
+
+  @@index([verificationStatus])
+  @@index([locationCity, locationDistrict])
+  @@map("tutor_profiles")
+}
+
+model Subject {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String         @unique
+  slug          String         @unique
+  category      String?
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tutorSubjects TutorSubject[]
+
+  @@map("subjects")
+}
+
+model TutorSubject {
+  id             String        @id @default(uuid()) @db.Uuid
+  tutorProfileId String        @map("tutor_profile_id") @db.Uuid
+  subjectId      String        @map("subject_id") @db.Uuid
+  level          SubjectLevel  @default(BASIC)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  tutorProfile   TutorProfile  @relation(fields: [tutorProfileId], references: [id], onDelete: Cascade)
+  subject        Subject       @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@unique([tutorProfileId, subjectId, level])
+  @@index([subjectId])
+  @@map("tutor_subjects")
+}
+
+model TutorDocument {
+  id              String              @id @default(uuid()) @db.Uuid
+  tutorProfileId  String              @map("tutor_profile_id") @db.Uuid
+  uploadedById    String              @map("uploaded_by_id") @db.Uuid
+  reviewedById    String?             @map("reviewed_by_id") @db.Uuid
+  type            TutorDocumentType
+  status          TutorDocumentStatus @default(PENDING)
+  fileName        String              @map("file_name")
+  filePath        String              @map("file_path")
+  mimeType        String              @map("mime_type")
+  fileSizeBytes   Int                 @map("file_size_bytes")
+  rejectionReason String?             @map("rejection_reason")
+  reviewedAt      DateTime?           @map("reviewed_at") @db.Timestamptz(6)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  tutorProfile    TutorProfile        @relation(fields: [tutorProfileId], references: [id], onDelete: Cascade)
+  uploadedBy      User                @relation("TutorDocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  reviewedBy      User?               @relation("TutorDocumentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([tutorProfileId])
+  @@index([status])
+  @@index([type])
+  @@map("tutor_documents")
+}
+
+model AdminAuditLog {
+  id           String           @id @default(uuid()) @db.Uuid
+  actorId      String           @map("actor_id") @db.Uuid
+  action       AdminAuditAction
+  resourceType String           @map("resource_type")
+  resourceId   String           @map("resource_id") @db.Uuid
+  reason       String?
+  metadata     Json?
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  actor        User             @relation("AdminAuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([actorId])
+  @@index([resourceType, resourceId])
+  @@index([action])
+  @@map("admin_audit_logs")
+}
+
 enum UserRole {
   STUDENT
   TUTOR
@@ -51,4 +155,48 @@ enum UserStatus {
   PENDING_EMAIL_VERIFICATION
   ACTIVE
   SUSPENDED
+}
+
+enum TutorVerificationStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum TeachingMode {
+  ONLINE
+  OFFLINE
+  BOTH
+}
+
+enum SubjectLevel {
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+  EXAM_PREP
+}
+
+enum TutorDocumentType {
+  NATIONAL_ID_FRONT
+  NATIONAL_ID_BACK
+  DEGREE
+  CERTIFICATE
+  BACKGROUND_CHECK
+  OTHER
+}
+
+enum TutorDocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AdminAuditAction {
+  TUTOR_APPROVED
+  TUTOR_REJECTED
+  DOCUMENT_APPROVED
+  DOCUMENT_REJECTED
+  USER_SUSPENDED
+  USER_UNSUSPENDED
 }

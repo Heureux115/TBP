@@ -30,7 +30,10 @@ export default function RegisterPage() {
         fullName,
         role,
       });
-      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+      const next = role === "TUTOR" ? "/tutor/onboarding" : "/dashboard";
+      router.push(
+        `/verify-email?email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng ký thất bại.");
     } finally {
@@ -211,4 +214,3 @@ export default function RegisterPage() {
     </main>
   );
 }
-
