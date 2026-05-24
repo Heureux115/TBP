@@ -5,9 +5,14 @@ import {
   Patch,
   Post,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
+import { ParseEnumPipe } from '@nestjs/common';
+import { TutorDocumentType } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/types/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TutorsService } from './tutors.service';
@@ -17,6 +22,13 @@ import { UpsertTutorProfileDto } from './dto/upsert-tutor-profile.dto';
 
 type AuthenticatedRequest = Request & {
   user: AuthenticatedUser;
+};
+
+type MultipartFile = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
 };
 
 @UseGuards(JwtAuthGuard)
@@ -61,6 +73,25 @@ export class TutorsController {
     @Body() dto: UploadUrlDto,
   ) {
     return this.tutorsService.createUploadUrl(request.user, dto);
+  }
+
+  @Post('me/avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadAvatar(
+    @Req() request: AuthenticatedRequest,
+    @UploadedFile() file: MultipartFile,
+  ) {
+    return this.tutorsService.uploadAvatar(request.user, file);
+  }
+
+  @Post('documents/upload')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadDocument(
+    @Req() request: AuthenticatedRequest,
+    @Body('type', new ParseEnumPipe(TutorDocumentType)) type: TutorDocumentType,
+    @UploadedFile() file: MultipartFile,
+  ) {
+    return this.tutorsService.uploadDocument(request.user, type, file);
   }
 
   @Post('documents')

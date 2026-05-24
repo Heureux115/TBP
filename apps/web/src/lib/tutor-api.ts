@@ -2,7 +2,15 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1
 
 export type TutorVerificationStatus = "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 export type TeachingMode = "ONLINE" | "OFFLINE" | "BOTH";
-export type SubjectLevel = "BASIC" | "INTERMEDIATE" | "ADVANCED" | "EXAM_PREP";
+export type SubjectLevel =
+  | "PRIMARY"
+  | "LOWER_SECONDARY"
+  | "HIGH_SCHOOL"
+  | "UNIVERSITY"
+  | "BASIC"
+  | "INTERMEDIATE"
+  | "ADVANCED"
+  | "EXAM_PREP";
 export type TutorDocumentType =
   | "NATIONAL_ID_FRONT"
   | "NATIONAL_ID_BACK"
@@ -167,6 +175,39 @@ export function createTutorDocumentUploadUrl(token: string, payload: UploadUrlPa
       body: JSON.stringify(payload),
     },
   );
+}
+
+async function uploadForm<T>(path: string, token: string, formData: FormData): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = typeof body?.message === "string" ? body.message : "Upload failed.";
+    throw new Error(message);
+  }
+
+  return body as T;
+}
+
+export function uploadTutorAvatar(token: string, file: File) {
+  const formData = new FormData();
+  formData.set("file", file);
+
+  return uploadForm<TutorProfile>("/tutors/me/avatar", token, formData);
+}
+
+export function uploadTutorDocumentFile(token: string, type: TutorDocumentType, file: File) {
+  const formData = new FormData();
+  formData.set("type", type);
+  formData.set("file", file);
+
+  return uploadForm<TutorDocument>("/tutors/documents/upload", token, formData);
 }
 
 export function getSubjects(token?: string) {

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DashboardShell, Icon } from "@/components/tutor/dashboard-shell";
-import { adminTutorRows } from "@/components/tutor/mock-data";
 import { getAccessToken } from "@/lib/auth-storage";
 import { getAdminTutors, type AdminTutorListItem, type TutorVerificationStatus } from "@/lib/tutor-api";
 
@@ -18,7 +17,7 @@ const statusLabels: Record<TutorVerificationStatus, string> = {
 
 export function AdminTutorsScreen({ initialState }: { initialState: ScreenState }) {
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<TutorVerificationStatus | "ALL">("PENDING_REVIEW");
+  const [status, setStatus] = useState<TutorVerificationStatus | "ALL">("ALL");
   const [serverRows, setServerRows] = useState<AdminTutorListItem[] | null>(null);
 
   useEffect(() => {
@@ -34,7 +33,7 @@ export function AdminTutorsScreen({ initialState }: { initialState: ScreenState 
   }, [initialState, status]);
 
   const rows = useMemo(() => {
-    return (serverRows ?? adminTutorRows).filter((row) => {
+    return (serverRows ?? []).filter((row) => {
       const matchesStatus = status === "ALL" || row.status === status;
       const searchable = `${row.fullName} ${row.email}`.toLowerCase();
       return matchesStatus && searchable.includes(query.toLowerCase());
@@ -130,7 +129,7 @@ function Filters({
             className="rounded-lg border border-[var(--outline-variant)] px-4 py-2.5 text-sm font-bold text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]"
             onClick={() => {
               setQuery("");
-              setStatus("PENDING_REVIEW");
+              setStatus("ALL");
             }}
             type="button"
           >
@@ -198,7 +197,7 @@ function TutorsTable({ rows }: { rows: AdminTutorListItem[] }) {
         </table>
       </div>
       <div className="flex flex-col justify-between gap-3 border-t border-[var(--outline-variant)] p-4 text-sm sm:flex-row sm:items-center">
-        <span className="text-[var(--on-surface-variant)]">Hiển thị 1-{rows.length} trên tổng số 24 hồ sơ</span>
+        <span className="text-[var(--on-surface-variant)]">Hiển thị {rows.length ? `1-${rows.length}` : "0"} trên tổng số {rows.length} hồ sơ</span>
         <div className="flex items-center gap-2">
           <button className="rounded-md border border-[var(--outline-variant)] p-2 text-[var(--outline)] opacity-50" disabled type="button">
             <Icon name="chevron_left" className="text-[20px]" />

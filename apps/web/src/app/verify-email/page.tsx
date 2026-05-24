@@ -55,7 +55,7 @@ function VerifyEmailContent() {
     try {
       await verifyEmail({ email, token: code });
       setMessage("Email đã được xác thực. Đang chuyển tới đăng nhập...");
-      setTimeout(() => router.push(`/login?next=${encodeURIComponent(next)}`), 800);
+      setTimeout(() => router.push(`/auth/login?next=${encodeURIComponent(next)}`), 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Mã xác thực không hợp lệ.");
     } finally {
@@ -86,7 +86,7 @@ function VerifyEmailContent() {
             TutorConnect
           </Link>
           <div className="flex items-center gap-3">
-            <Link className="rounded-lg px-4 py-2 text-sm font-semibold text-[#004271] hover:bg-[#dee8ff]" href="/login">
+            <Link className="rounded-lg px-4 py-2 text-sm font-semibold text-[#004271] hover:bg-[#dee8ff]" href="/auth/login">
               Sign In
             </Link>
             <Link className="rounded-lg bg-[#004271] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0d5a94]" href="/register">

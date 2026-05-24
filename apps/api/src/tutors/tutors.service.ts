@@ -4,12 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { mkdir, writeFile } from 'fs/promises';
+import { extname, join, resolve } from 'path';
+import { randomUUID } from 'crypto';
 import {
   AdminAuditAction,
   Prisma,
+  TeachingMode,
   SubjectLevel,
+  TutorDocumentStatus,
   TutorDocumentType,
   TutorVerificationStatus,
+  UserStatus,
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +23,10 @@ import { AuthenticatedUser } from '../auth/types/auth.types';
 import { CreateTutorDocumentDto } from './dto/create-tutor-document.dto';
 import { UploadUrlDto } from './dto/upload-url.dto';
 import { UpsertTutorProfileDto } from './dto/upsert-tutor-profile.dto';
+import {
+  SearchTutorsDto,
+  TutorSearchSort,
+} from './dto/discovery/search-tutors.dto';
 
 const tutorProfileInclude = {
   user: true,
@@ -38,13 +48,154 @@ const tutorProfileInclude = {
   },
 } satisfies Prisma.TutorProfileInclude;
 
+const publicTutorInclude = {
+  user: true,
+  subjects: {
+    include: {
+      subject: true,
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  },
+} satisfies Prisma.TutorProfileInclude;
+
 type TutorProfileWithRelations = Prisma.TutorProfileGetPayload<{
   include: typeof tutorProfileInclude;
 }>;
 
+type PublicTutorWithRelations = Prisma.TutorProfileGetPayload<{
+  include: typeof publicTutorInclude;
+}>;
+
+type MultipartFile = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+};
+
 @Injectable()
 export class TutorsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async searchPublicTutors(query: SearchTutorsDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 12;
+    const where = this.buildPublicTutorWhere(query);
+    const orderBy = this.buildPublicTutorOrderBy(query.sort);
+
+    const [total, profiles] = await this.prisma.$transaction([
+      this.prisma.tutorProfile.count({ where }),
+      this.prisma.tutorProfile.findMany({
+        where,
+        include: publicTutorInclude,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      items: profiles.map((profile) => this.serializePublicTutorCard(profile)),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  async getPublicTutor(id: string) {
+    const profile = await this.prisma.tutorProfile.findFirst({
+      where: {
+        id,
+        verificationStatus: TutorVerificationStatus.APPROVED,
+        deletedAt: null,
+        user: {
+          status: UserStatus.ACTIVE,
+          deletedAt: null,
+        },
+      },
+      include: {
+        ...publicTutorInclude,
+        documents: {
+          where: {
+            deletedAt: null,
+            status: TutorDocumentStatus.APPROVED,
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('tutor not found');
+    }
+
+    return {
+      ...this.serializePublicTutorCard(profile),
+      bio: profile.bio,
+      introVideoUrl: profile.introVideoUrl,
+      approvedAt: profile.approvedAt?.toISOString() ?? null,
+      verifiedDocuments: profile.documents.map((document) => ({
+        id: document.id,
+        type: document.type,
+        status: document.status,
+      })),
+    };
+  }
+
+  async getPublicTutorAvailability(id: string, weekStart?: string) {
+    const profile = await this.prisma.tutorProfile.findFirst({
+      where: {
+        id,
+        verificationStatus: TutorVerificationStatus.APPROVED,
+        deletedAt: null,
+        user: {
+          status: UserStatus.ACTIVE,
+          deletedAt: null,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('tutor not found');
+    }
+
+    const start = this.normalizeWeekStart(weekStart);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 7);
+
+    const slots = await this.prisma.availabilitySlot.findMany({
+      where: {
+        tutorProfileId: id,
+        deletedAt: null,
+        startsAt: {
+          gte: start,
+          lt: end,
+        },
+      },
+      orderBy: {
+        startsAt: 'asc',
+      },
+    });
+
+    return {
+      tutorId: id,
+      weekStart: start.toISOString(),
+      weekEnd: end.toISOString(),
+      slots: slots.map((slot) => ({
+        id: slot.id,
+        startsAt: slot.startsAt.toISOString(),
+        endsAt: slot.endsAt.toISOString(),
+        isBooked: slot.isBooked,
+        isAvailable: !slot.isBooked,
+      })),
+    };
+  }
 
   async getMyProfile(user: AuthenticatedUser) {
     this.assertTutor(user);
@@ -163,6 +314,61 @@ export class TutorsService {
     };
   }
 
+  async uploadAvatar(user: AuthenticatedUser, file?: MultipartFile) {
+    this.assertTutor(user);
+    this.assertUploadFile(file, ['image/jpeg', 'image/png', 'image/webp']);
+
+    const stored = await this.storeUpload(file, `avatars/${user.id}`);
+    const profile = await this.prisma.tutorProfile.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        avatarUrl: stored.publicUrl,
+      },
+      update: {
+        avatarUrl: stored.publicUrl,
+      },
+      include: tutorProfileInclude,
+    });
+
+    return this.serializeProfile(profile);
+  }
+
+  async uploadDocument(
+    user: AuthenticatedUser,
+    type: TutorDocumentType,
+    file?: MultipartFile,
+  ) {
+    this.assertTutor(user);
+    this.assertUploadFile(file, [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'application/pdf',
+    ]);
+
+    const profile = await this.prisma.tutorProfile.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id },
+      update: {},
+    });
+    const stored = await this.storeUpload(file, `tutor-documents/${user.id}`);
+
+    const document = await this.prisma.tutorDocument.create({
+      data: {
+        tutorProfileId: profile.id,
+        uploadedById: user.id,
+        type,
+        fileName: file.originalname,
+        filePath: stored.publicUrl,
+        mimeType: file.mimetype || 'application/octet-stream',
+        fileSizeBytes: file.size,
+      },
+    });
+
+    return this.serializeDocument(document);
+  }
+
   async createDocument(user: AuthenticatedUser, dto: CreateTutorDocumentDto) {
     this.assertTutor(user);
 
@@ -209,7 +415,7 @@ export class TutorsService {
       id: profile.id,
       fullName: profile.user.fullName,
       email: profile.user.email,
-      avatarUrl: null,
+      avatarUrl: this.toPublicUploadUrl(profile.avatarUrl),
       city: profile.locationCity,
       district: profile.locationDistrict,
       subjectCount: profile._count.subjects,
@@ -247,6 +453,20 @@ export class TutorsService {
         include: tutorProfileInclude,
       });
 
+      await tx.tutorDocument.updateMany({
+        where: {
+          tutorProfileId: id,
+          deletedAt: null,
+          status: TutorDocumentStatus.PENDING,
+        },
+        data: {
+          status: TutorDocumentStatus.APPROVED,
+          reviewedById: admin.id,
+          reviewedAt: new Date(),
+          rejectionReason: null,
+        },
+      });
+
       await tx.adminAuditLog.create({
         data: {
           actorId: admin.id,
@@ -256,7 +476,10 @@ export class TutorsService {
         },
       });
 
-      return updated;
+      return tx.tutorProfile.findUniqueOrThrow({
+        where: { id: updated.id },
+        include: tutorProfileInclude,
+      });
     });
 
     return this.serializeProfile(profile);
@@ -325,6 +548,252 @@ export class TutorsService {
     });
   }
 
+  private buildPublicTutorWhere(
+    query: SearchTutorsDto,
+  ): Prisma.TutorProfileWhereInput {
+    const subjectFilters: Prisma.TutorSubjectWhereInput[] = [];
+
+    if (query.subjectId) {
+      subjectFilters.push({ subjectId: query.subjectId });
+    }
+
+    if (query.level) {
+      subjectFilters.push({ level: query.level });
+    }
+
+    const where: Prisma.TutorProfileWhereInput = {
+      deletedAt: null,
+      verificationStatus: TutorVerificationStatus.APPROVED,
+      user: {
+        status: UserStatus.ACTIVE,
+        deletedAt: null,
+      },
+      ...(query.q
+        ? {
+            OR: [
+              { headline: { contains: query.q, mode: 'insensitive' } },
+              { bio: { contains: query.q, mode: 'insensitive' } },
+              {
+                user: { fullName: { contains: query.q, mode: 'insensitive' } },
+              },
+              {
+                subjects: {
+                  some: {
+                    subject: {
+                      name: { contains: query.q, mode: 'insensitive' },
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+      ...(query.city
+        ? { locationCity: { contains: query.city, mode: 'insensitive' } }
+        : {}),
+      ...(query.district
+        ? {
+            locationDistrict: {
+              contains: query.district,
+              mode: 'insensitive',
+            },
+          }
+        : {}),
+      ...(query.teachingMode
+        ? {
+            teachingMode:
+              query.teachingMode === TeachingMode.BOTH
+                ? TeachingMode.BOTH
+                : { in: [query.teachingMode, TeachingMode.BOTH] },
+          }
+        : {}),
+      ...(query.minPrice !== undefined || query.maxPrice !== undefined
+        ? {
+            hourlyRate: {
+              ...(query.minPrice !== undefined
+                ? { gte: new Prisma.Decimal(query.minPrice) }
+                : {}),
+              ...(query.maxPrice !== undefined
+                ? { lte: new Prisma.Decimal(query.maxPrice) }
+                : {}),
+            },
+          }
+        : {}),
+      ...(query.minRating !== undefined
+        ? { ratingAvg: { gte: new Prisma.Decimal(query.minRating) } }
+        : {}),
+      ...(subjectFilters.length
+        ? {
+            subjects: {
+              some: {
+                AND: subjectFilters,
+              },
+            },
+          }
+        : {}),
+    };
+
+    return where;
+  }
+
+  private buildPublicTutorOrderBy(
+    sort?: TutorSearchSort,
+  ): Prisma.TutorProfileOrderByWithRelationInput[] {
+    switch (sort) {
+      case TutorSearchSort.PRICE_ASC:
+        return [{ hourlyRate: 'asc' }, { ratingAvg: 'desc' }];
+      case TutorSearchSort.PRICE_DESC:
+        return [{ hourlyRate: 'desc' }, { ratingAvg: 'desc' }];
+      case TutorSearchSort.RATING_DESC:
+        return [{ ratingAvg: 'desc' }, { totalSessions: 'desc' }];
+      case TutorSearchSort.NEWEST:
+        return [{ approvedAt: 'desc' }, { createdAt: 'desc' }];
+      case TutorSearchSort.RELEVANCE:
+      default:
+        return [
+          { ratingAvg: 'desc' },
+          { totalSessions: 'desc' },
+          { approvedAt: 'desc' },
+        ];
+    }
+  }
+
+  private normalizeWeekStart(value?: string) {
+    const date = value ? new Date(value) : new Date();
+
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('weekStart must be a valid ISO date');
+    }
+
+    const start = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+    );
+    const day = start.getUTCDay();
+    const offset = day === 0 ? -6 : 1 - day;
+    start.setUTCDate(start.getUTCDate() + offset);
+
+    return start;
+  }
+
+  private assertUploadFile(
+    file: MultipartFile | undefined,
+    allowedMimeTypes: string[],
+  ): asserts file is MultipartFile {
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException('unsupported file type');
+    }
+
+    const maxSize = file.mimetype === 'application/pdf' ? 8 : 5;
+
+    if (file.size > maxSize * 1024 * 1024) {
+      throw new BadRequestException(`file size must be ${maxSize}MB or less`);
+    }
+
+    if (!this.extensionFromMime(file.mimetype)) {
+      throw new BadRequestException('unsupported file extension');
+    }
+  }
+
+  private async storeUpload(file: MultipartFile, folder: string) {
+    const extension = this.resolveSafeExtension(file);
+    const safeFolder = folder.replace(/[^a-zA-Z0-9/_-]/g, '_');
+    const fileName = `${Date.now()}-${randomUUID()}${extension}`;
+    const relativePath = `${safeFolder}/${fileName}`;
+    const uploadRoot = resolve(process.cwd(), 'uploads');
+    const absoluteDirectory = resolve(uploadRoot, safeFolder);
+    const absolutePath = resolve(absoluteDirectory, fileName);
+
+    if (!absolutePath.startsWith(uploadRoot)) {
+      throw new BadRequestException('invalid upload path');
+    }
+
+    await mkdir(absoluteDirectory, { recursive: true });
+    await writeFile(absolutePath, file.buffer);
+
+    return {
+      relativePath,
+      publicUrl: `/uploads/${relativePath}`,
+    };
+  }
+
+  private extensionFromMime(mimeType: string) {
+    switch (mimeType) {
+      case 'image/jpeg':
+        return '.jpg';
+      case 'image/png':
+        return '.png';
+      case 'image/webp':
+        return '.webp';
+      case 'application/pdf':
+        return '.pdf';
+      default:
+        return '';
+    }
+  }
+
+  private resolveSafeExtension(file: MultipartFile) {
+    const extension = extname(file.originalname).toLowerCase();
+    const expected = this.extensionFromMime(file.mimetype);
+    const aliases: Record<string, string[]> = {
+      '.jpg': ['.jpg', '.jpeg'],
+      '.png': ['.png'],
+      '.webp': ['.webp'],
+      '.pdf': ['.pdf'],
+    };
+
+    if (!expected) {
+      throw new BadRequestException('unsupported file type');
+    }
+
+    if (extension && !(aliases[expected] ?? [expected]).includes(extension)) {
+      throw new BadRequestException('file extension does not match file type');
+    }
+
+    return expected;
+  }
+
+  private toPublicUploadUrl(value: string | null) {
+    if (!value) {
+      return null;
+    }
+
+    if (/^https?:\/\//.test(value)) {
+      return value;
+    }
+
+    const baseUrl = process.env.API_PUBLIC_URL ?? 'http://localhost:3001';
+    return value.startsWith('/uploads') ? `${baseUrl}${value}` : value;
+  }
+
+  private serializePublicTutorCard(profile: PublicTutorWithRelations) {
+    return {
+      id: profile.id,
+      fullName: profile.user.fullName,
+      avatarUrl: this.toPublicUploadUrl(profile.avatarUrl),
+      headline: profile.headline,
+      bioExcerpt: profile.bio
+        ? `${profile.bio.slice(0, 180)}${profile.bio.length > 180 ? '...' : ''}`
+        : null,
+      experienceYears: profile.experienceYears,
+      hourlyRate: profile.hourlyRate?.toString() ?? null,
+      teachingMode: profile.teachingMode,
+      locationCity: profile.locationCity,
+      locationDistrict: profile.locationDistrict,
+      ratingAvg: profile.ratingAvg.toString(),
+      totalSessions: profile.totalSessions,
+      verified: true,
+      subjects: profile.subjects.map((subject) => ({
+        id: subject.id,
+        level: subject.level,
+        subject: subject.subject,
+      })),
+    };
+  }
+
   private assertProfileReady(profile: TutorProfileWithRelations) {
     const requiredTypes = [
       TutorDocumentType.NATIONAL_ID_FRONT,
@@ -380,7 +849,7 @@ export class TutorsService {
       fullName: profile.user.fullName,
       email: profile.user.email,
       phone: profile.user.phone,
-      avatarUrl: null,
+      avatarUrl: this.toPublicUploadUrl(profile.avatarUrl),
       headline: profile.headline,
       bio: profile.bio,
       introVideoUrl: profile.introVideoUrl,
@@ -422,7 +891,7 @@ export class TutorsService {
       type: document.type,
       status: document.status,
       fileName: document.fileName,
-      filePath: document.filePath,
+      filePath: this.toPublicUploadUrl(document.filePath) ?? document.filePath,
       mimeType: document.mimeType,
       fileSizeBytes: document.fileSizeBytes,
       rejectionReason: document.rejectionReason,

@@ -25,6 +25,7 @@ model User {
   uploadedTutorDocuments         TutorDocument[] @relation("TutorDocumentUploader")
   reviewedTutorDocuments         TutorDocument[] @relation("TutorDocumentReviewer")
   adminAuditLogs                 AdminAuditLog[] @relation("AdminAuditActor")
+  studentBookings                Booking[]      @relation("StudentBookings")
 
   @@map("users")
 }
@@ -49,6 +50,7 @@ model TutorProfile {
   userId                   String                  @unique @map("user_id") @db.Uuid
   headline                 String?
   bio                      String?
+  avatarUrl                String?                 @map("avatar_url")
   introVideoUrl            String?                 @map("intro_video_url")
   experienceYears          Int?                    @map("experience_years")
   hourlyRate               Decimal?                @map("hourly_rate") @db.Decimal(12, 2)
@@ -68,6 +70,8 @@ model TutorProfile {
   user                     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   subjects                 TutorSubject[]
   documents                TutorDocument[]
+  availabilitySlots        AvailabilitySlot[]
+  bookings                 Booking[]
 
   @@index([verificationStatus])
   @@index([locationCity, locationDistrict])
@@ -127,6 +131,46 @@ model TutorDocument {
   @@map("tutor_documents")
 }
 
+model AvailabilitySlot {
+  id             String       @id @default(uuid()) @db.Uuid
+  tutorProfileId String       @map("tutor_profile_id") @db.Uuid
+  startsAt       DateTime     @map("starts_at") @db.Timestamptz(6)
+  endsAt         DateTime     @map("ends_at") @db.Timestamptz(6)
+  isBooked       Boolean      @default(false) @map("is_booked")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  tutorProfile   TutorProfile @relation(fields: [tutorProfileId], references: [id], onDelete: Cascade)
+  booking        Booking?
+
+  @@index([tutorProfileId, startsAt])
+  @@index([startsAt, endsAt])
+  @@map("availability_slots")
+}
+
+model Booking {
+  id                 String          @id @default(uuid()) @db.Uuid
+  studentId          String          @map("student_id") @db.Uuid
+  tutorProfileId     String          @map("tutor_profile_id") @db.Uuid
+  availabilitySlotId String          @unique @map("availability_slot_id") @db.Uuid
+  startsAt           DateTime        @map("starts_at") @db.Timestamptz(6)
+  endsAt             DateTime        @map("ends_at") @db.Timestamptz(6)
+  status             BookingStatus   @default(PENDING)
+  studentNote        String?         @map("student_note")
+  cancellationReason String?         @map("cancellation_reason")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  student            User            @relation("StudentBookings", fields: [studentId], references: [id], onDelete: Restrict)
+  tutorProfile       TutorProfile    @relation(fields: [tutorProfileId], references: [id], onDelete: Restrict)
+  availabilitySlot   AvailabilitySlot @relation(fields: [availabilitySlotId], references: [id], onDelete: Restrict)
+
+  @@index([studentId, startsAt])
+  @@index([tutorProfileId, startsAt])
+  @@index([status])
+  @@map("bookings")
+}
+
 model AdminAuditLog {
   id           String           @id @default(uuid()) @db.Uuid
   actorId      String           @map("actor_id") @db.Uuid
@@ -171,6 +215,10 @@ enum TeachingMode {
 }
 
 enum SubjectLevel {
+  PRIMARY
+  LOWER_SECONDARY
+  HIGH_SCHOOL
+  UNIVERSITY
   BASIC
   INTERMEDIATE
   ADVANCED
@@ -190,6 +238,13 @@ enum TutorDocumentStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
 }
 
 enum AdminAuditAction {
