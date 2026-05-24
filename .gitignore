@@ -7,6 +7,7 @@ build/
 .next/
 out/
 coverage/
+apps/api/uploads/
 
 # Environment files
 .env
@@ -27,4 +28,3 @@ Thumbs.db
 
 # Temporary Office lock files
 ~$*.docx
-

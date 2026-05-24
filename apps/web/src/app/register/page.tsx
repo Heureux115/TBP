@@ -203,7 +203,7 @@ export default function RegisterPage() {
               Đã có tài khoản?{" "}
               <Link
                 className="font-medium text-[#004271] transition hover:underline"
-                href="/login"
+                href="/auth/login"
               >
                 Đăng nhập
               </Link>

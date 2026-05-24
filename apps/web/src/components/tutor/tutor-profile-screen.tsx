@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DashboardShell, Icon } from "@/components/tutor/dashboard-shell";
-import { mockTutorProfile } from "@/components/tutor/mock-data";
 import { getAccessToken } from "@/lib/auth-storage";
 import { getMyTutorProfile, type TutorDocument, type TutorProfile, type TutorVerificationStatus } from "@/lib/tutor-api";
 
@@ -42,11 +41,8 @@ const statusCopy: Record<
 };
 
 export function TutorProfileScreen({ initialStatus }: { initialStatus: TutorVerificationStatus }) {
-  const [profile, setProfile] = useState<TutorProfile>({
-    ...mockTutorProfile,
-    verificationStatus: initialStatus,
-  });
-  const status = profile.verificationStatus;
+  const [profile, setProfile] = useState<TutorProfile | null>(null);
+  const status = profile?.verificationStatus ?? initialStatus;
   const copy = statusCopy[status];
   const completion = status === "DRAFT" ? 25 : status === "REJECTED" ? 80 : 100;
 
@@ -89,13 +85,19 @@ export function TutorProfileScreen({ initialStatus }: { initialStatus: TutorVeri
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <aside className="lg:col-span-4">
-              <IdentityCard status={status} />
+              {profile ? <IdentityCard profile={profile} status={status} /> : <ProfileLoading />}
             </aside>
             <section className="flex flex-col gap-6 lg:col-span-8">
-              <BioCard />
-              <StatsGrid />
-              <SubjectsCard />
-              <DocumentsCard documents={profile.documents} status={status} />
+              {profile ? (
+                <>
+                  <BioCard profile={profile} />
+                  <StatsGrid profile={profile} />
+                  <SubjectsCard profile={profile} />
+                  <DocumentsCard documents={profile.documents} status={status} />
+                </>
+              ) : (
+                <ProfileLoading />
+              )}
             </section>
           </div>
         )}
@@ -209,23 +211,25 @@ function DraftEmptyCards() {
   );
 }
 
-function IdentityCard({ status }: { status: TutorVerificationStatus }) {
+function IdentityCard({ profile, status }: { profile: TutorProfile; status: TutorVerificationStatus }) {
   const color = status === "REJECTED" ? "bg-[var(--error)]" : status === "APPROVED" ? "bg-[var(--tertiary)]" : "bg-[var(--secondary)]";
+  const location = [profile.locationDistrict, profile.locationCity].filter(Boolean).join(", ") || "Chưa cập nhật";
+  const initial = profile.fullName.trim().charAt(0).toUpperCase() || "G";
 
   return (
     <div className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 text-center shadow-sm">
       <div className="relative mx-auto mb-4 h-32 w-32">
-        <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-[var(--surface)] bg-[var(--surface-container-highest)] text-5xl font-bold text-[var(--primary)]">
-          A
+        <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--surface)] bg-[var(--surface-container-highest)] text-5xl font-bold text-[var(--primary)]">
+          {profile.avatarUrl ? <img alt={profile.fullName} className="h-full w-full object-cover" src={profile.avatarUrl} /> : initial}
         </div>
         <div className={`absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-white ${color}`}>
           <Icon name={status === "APPROVED" ? "verified" : status === "REJECTED" ? "priority_high" : "hourglass_empty"} fill className="text-[16px]" />
         </div>
       </div>
-      <h3 className="text-2xl font-semibold">Nguyễn Văn A</h3>
-      <p className="mt-1 text-sm text-[var(--on-surface-variant)]">Gia sư Toán THPT chuyên luyện thi</p>
+      <h3 className="text-2xl font-semibold">{profile.fullName}</h3>
+      <p className="mt-1 text-sm text-[var(--on-surface-variant)]">{profile.headline ?? "Chưa cập nhật tiêu đề"}</p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
-        {["Toán học", "Vật lý", "Luyện thi"].map((item) => (
+        {(profile.subjects.length ? profile.subjects.slice(0, 3).map((item) => item.subject.name) : ["Chưa cập nhật"]).map((item) => (
           <span className="rounded-full bg-[var(--surface-container)] px-3 py-1 text-xs font-semibold text-[var(--on-surface-variant)]" key={item}>
             {item}
           </span>
@@ -233,31 +237,40 @@ function IdentityCard({ status }: { status: TutorVerificationStatus }) {
       </div>
       <div className="my-5 h-px bg-[var(--outline-variant)]" />
       <div className="space-y-3 text-left text-sm">
-        <InfoLine icon="mail" text="nguyenvana@email.com" />
-        <InfoLine icon="call" text="0912 345 678" />
-        <InfoLine icon="location_on" text="Quận 1, TP. Hồ Chí Minh" />
+        <InfoLine icon="mail" text={profile.email} />
+        <InfoLine icon="call" text={profile.phone ?? "Chưa cập nhật"} />
+        <InfoLine icon="location_on" text={location} />
       </div>
     </div>
   );
 }
 
-function BioCard() {
+function ProfileLoading() {
+  return (
+    <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 text-sm font-semibold text-[var(--on-surface-variant)] shadow-sm">
+      Đang tải dữ liệu hồ sơ từ database...
+    </section>
+  );
+}
+
+function BioCard({ profile }: { profile: TutorProfile }) {
   return (
     <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
       <h3 className="mb-3 text-xl font-semibold">Giới thiệu bản thân</h3>
       <p className="text-sm leading-7 text-[var(--on-surface-variant)]">
-        Sinh viên năm cuối Đại học Sư Phạm TP.HCM, chuyên ngành Sư phạm Toán. Đã có kinh nghiệm kèm cặp nhiều học sinh đạt điểm cao trong các kỳ thi đại học. Phương pháp giảng dạy tập trung vào việc hiểu bản chất vấn đề, không học vẹt, đồng hành cùng học sinh như một người bạn.
+        {profile.bio ?? "Chưa cập nhật phần giới thiệu bản thân."}
       </p>
     </section>
   );
 }
 
-function StatsGrid() {
+function StatsGrid({ profile }: { profile: TutorProfile }) {
+  const location = [profile.locationDistrict, profile.locationCity].filter(Boolean).join(", ") || "Chưa cập nhật";
   const stats = [
-    ["school", "Kinh nghiệm", "5 năm"],
-    ["payments", "Mức học phí", "250.000đ/giờ"],
-    ["cast_for_education", "Hình thức dạy", "Online/Offline"],
-    ["location_on", "Khu vực", "Quận 1, TP.HCM"],
+    ["school", "Kinh nghiệm", `${profile.experienceYears ?? 0} năm`],
+    ["payments", "Mức học phí", profile.hourlyRate ? `${new Intl.NumberFormat("vi-VN").format(Number(profile.hourlyRate))}đ/giờ` : "Chưa cập nhật"],
+    ["cast_for_education", "Hình thức dạy", teachingModeLabel(profile.teachingMode)],
+    ["location_on", "Khu vực", location],
   ];
 
   return (
@@ -277,7 +290,11 @@ function StatsGrid() {
   );
 }
 
-function SubjectsCard() {
+function SubjectsCard({ profile }: { profile: TutorProfile }) {
+  const subjects = profile.subjects.length
+    ? profile.subjects.map((item) => `${item.subject.name} - ${subjectLevelLabel(item.level)}`)
+    : ["Chưa cập nhật môn học"];
+
   return (
     <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
       <h3 className="mb-4 flex items-center gap-2 text-xl font-semibold">
@@ -285,7 +302,7 @@ function SubjectsCard() {
         Môn học giảng dạy
       </h3>
       <div className="flex flex-wrap gap-2">
-        {["Toán học - Luyện thi", "Vật lý - Nâng cao", "Toán lớp 10-12"].map((item) => (
+        {subjects.map((item) => (
           <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-highest)] px-4 py-2 text-sm font-semibold" key={item}>
             {item}
           </span>
@@ -296,13 +313,6 @@ function SubjectsCard() {
 }
 
 function DocumentsCard({ documents, status }: { documents: TutorDocument[]; status: TutorVerificationStatus }) {
-  const rejectedDoc: TutorDocument = {
-    ...documents[0],
-    status: "REJECTED",
-    rejectionReason: "Ảnh CCCD mặt trước bị mờ.",
-  };
-  const visibleDocuments = status === "REJECTED" ? [rejectedDoc, ...documents.slice(1)] : documents;
-
   return (
     <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
       <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -320,7 +330,7 @@ function DocumentsCard({ documents, status }: { documents: TutorDocument[]; stat
         ) : null}
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {visibleDocuments.map((doc) => (
+        {documents.length ? documents.map((doc) => (
           <div
             className={[
               "rounded-xl border p-4",
@@ -348,7 +358,11 @@ function DocumentsCard({ documents, status }: { documents: TutorDocument[]; stat
               </button>
             ) : null}
           </div>
-        ))}
+        )) : (
+          <p className="col-span-full rounded-lg border border-dashed border-[var(--outline-variant)] bg-[var(--surface)] p-4 text-sm text-[var(--on-surface-variant)]">
+            Chưa có tài liệu xác minh.
+          </p>
+        )}
       </div>
     </section>
   );
@@ -374,4 +388,25 @@ function documentLabel(type: TutorDocument["type"]) {
   };
 
   return labels[type];
+}
+
+function subjectLevelLabel(level: TutorProfile["subjects"][number]["level"]) {
+  const labels: Record<TutorProfile["subjects"][number]["level"], string> = {
+    PRIMARY: "Tiểu học",
+    LOWER_SECONDARY: "Cấp 2",
+    HIGH_SCHOOL: "Cấp 3",
+    UNIVERSITY: "Đại học",
+    BASIC: "Cơ bản",
+    INTERMEDIATE: "Trung cấp",
+    ADVANCED: "Nâng cao",
+    EXAM_PREP: "Luyện thi",
+  };
+
+  return labels[level];
+}
+
+function teachingModeLabel(mode: TutorProfile["teachingMode"]) {
+  if (mode === "ONLINE") return "Online";
+  if (mode === "OFFLINE") return "Offline";
+  return "Online/Offline";
 }

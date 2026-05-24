@@ -1,5 +1,8 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { getCurrentUser, type PublicUser } from "@/lib/api";
+import { clearTokens, getAccessToken } from "@/lib/auth-storage";
+import { getMyTutorProfile, type TutorProfile } from "@/lib/tutor-api";
 
 type NavItem = {
   href: string;
@@ -17,6 +20,33 @@ export function DashboardShell({
   children: ReactNode;
   mode?: "tutor" | "admin";
 }) {
+  const [user, setUser] = useState<PublicUser | null>(null);
+  const [profile, setProfile] = useState<TutorProfile | null>(null);
+
+  useEffect(() => {
+    const token = getAccessToken();
+
+    if (!token) {
+      return;
+    }
+
+    getCurrentUser(token)
+      .then(({ user: currentUser }) => {
+        setUser(currentUser);
+        if (currentUser.role === "TUTOR") {
+          return getMyTutorProfile(token).then(setProfile).catch(() => undefined);
+        }
+        return undefined;
+      })
+      .catch(() => {
+        clearTokens();
+        setUser(null);
+        setProfile(null);
+      });
+  }, []);
+
+  const displayName = mode === "admin" ? (user?.fullName ?? "System Admin") : (profile?.fullName ?? user?.fullName ?? "Gia sư");
+  const avatarUrl = mode === "admin" ? null : profile?.avatarUrl;
   const navItems: NavItem[] =
     mode === "admin"
       ? [
@@ -49,13 +79,17 @@ export function DashboardShell({
         </div>
 
         <div className="mb-8 flex items-center gap-3 px-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-highest)] text-[var(--primary)]">
-            <span className="material-symbols-outlined icon-fill">person</span>
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-highest)] text-[var(--primary)]">
+            {avatarUrl ? (
+              <img alt={displayName} className="h-full w-full object-cover" src={avatarUrl} />
+            ) : (
+              <span className="material-symbols-outlined icon-fill">person</span>
+            )}
           </div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-[var(--on-surface-variant)]">Welcome back,</p>
             <p className="truncate text-sm font-bold text-[var(--on-surface)]">
-              {mode === "admin" ? "System Admin" : "Nguyễn Văn A"}
+              {displayName}
             </p>
           </div>
         </div>
@@ -90,7 +124,7 @@ export function DashboardShell({
           </Link>
           <Link
             className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]"
-            href="/login"
+            href="/auth/login"
           >
             <span className="material-symbols-outlined">logout</span>
             Logout

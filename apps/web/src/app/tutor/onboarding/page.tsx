@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { getAccessToken } from "@/lib/auth-storage";
 import {
-  createTutorDocument,
-  createTutorDocumentUploadUrl,
   getMyTutorProfile,
   getSubjects,
   submitTutorVerification,
   updateTutorProfile,
+  uploadTutorAvatar,
+  uploadTutorDocumentFile,
   type Subject,
   type SubjectLevel,
   type TeachingMode,
@@ -42,6 +42,10 @@ const fallbackSubjects: Subject[] = [
 ];
 
 const subjectLevelLabels: Record<SubjectLevel, string> = {
+  PRIMARY: "Tiểu học",
+  LOWER_SECONDARY: "Cấp 2",
+  HIGH_SCHOOL: "Cấp 3",
+  UNIVERSITY: "Đại học",
   BASIC: "Cơ bản",
   INTERMEDIATE: "Trung cấp",
   ADVANCED: "Nâng cao",
@@ -90,7 +94,7 @@ export default function TutorOnboardingPage() {
   const [city, setCity] = useState("");
   const [district, setDistrict] = useState("");
   const [subjectId, setSubjectId] = useState(fallbackSubjects[0].id);
-  const [level, setLevel] = useState<SubjectLevel>("BASIC");
+  const [level, setLevel] = useState<SubjectLevel>("HIGH_SCHOOL");
   const [subjects, setSubjects] = useState<SelectedSubject[]>([]);
   const [documents, setDocuments] = useState<Record<DocumentKey, File | null>>({
     idFront: null,
@@ -98,6 +102,8 @@ export default function TutorOnboardingPage() {
     degree: null,
     certificate: null,
   });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [existingDocuments, setExistingDocuments] = useState<TutorDocument[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -108,7 +114,7 @@ export default function TutorOnboardingPage() {
     const token = getAccessToken();
 
     if (!token) {
-      router.replace("/login");
+      router.replace("/auth/login");
       return;
     }
 
@@ -131,6 +137,7 @@ export default function TutorOnboardingPage() {
         setCity(profile.locationCity ?? "");
         setDistrict(profile.locationDistrict ?? "");
         setExistingDocuments(profile.documents);
+        setAvatarPreview(profile.avatarUrl);
         setSubjects(
           profile.subjects.map((item) => ({
             id: item.id,
@@ -216,6 +223,12 @@ export default function TutorOnboardingPage() {
     }));
   }
 
+  function updateAvatar(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setAvatarFile(file);
+    setAvatarPreview(file ? URL.createObjectURL(file) : null);
+  }
+
   function clearDocument(key: DocumentKey) {
     setDocuments((current) => ({
       ...current,
@@ -227,7 +240,7 @@ export default function TutorOnboardingPage() {
     const token = getAccessToken();
 
     if (!token) {
-      router.replace("/login");
+      router.replace("/auth/login");
       return;
     }
 
@@ -248,6 +261,11 @@ export default function TutorOnboardingPage() {
           level: subject.level,
         })),
       });
+      if (avatarFile) {
+        const profile = await uploadTutorAvatar(token, avatarFile);
+        setAvatarPreview(profile.avatarUrl);
+        setAvatarFile(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể lưu hồ sơ.");
       throw err;
@@ -263,19 +281,7 @@ export default function TutorOnboardingPage() {
 
     for (const [key, file] of entries) {
       const config = documentConfig[key];
-      const upload = await createTutorDocumentUploadUrl(token, {
-        type: config.type,
-        fileName: file.name,
-        mimeType: file.type || "application/octet-stream",
-      });
-
-      await createTutorDocument(token, {
-        type: config.type,
-        fileName: file.name,
-        filePath: upload.filePath,
-        mimeType: file.type || "application/octet-stream",
-        fileSizeBytes: file.size,
-      });
+      await uploadTutorDocumentFile(token, config.type, file);
     }
   }
 
@@ -287,7 +293,7 @@ export default function TutorOnboardingPage() {
     const token = getAccessToken();
 
     if (!token) {
-      router.replace("/login");
+      router.replace("/auth/login");
       return;
     }
 
@@ -358,12 +364,14 @@ export default function TutorOnboardingPage() {
                 experienceYears={experienceYears}
                 headline={headline}
                 hourlyRate={hourlyRate}
+                avatarPreview={avatarPreview}
                 setBio={setBio}
                 setCity={setCity}
                 setDistrict={setDistrict}
                 setExperienceYears={setExperienceYears}
                 setHeadline={setHeadline}
                 setHourlyRate={setHourlyRate}
+                updateAvatar={updateAvatar}
                 setTeachingMode={setTeachingMode}
                 teachingMode={teachingMode}
               />
@@ -524,6 +532,7 @@ function SubmittedState() {
 }
 
 function ProfileStep({
+  avatarPreview,
   bio,
   city,
   district,
@@ -538,7 +547,9 @@ function ProfileStep({
   setHourlyRate,
   setTeachingMode,
   teachingMode,
+  updateAvatar,
 }: {
+  avatarPreview: string | null;
   bio: string;
   city: string;
   district: string;
@@ -553,6 +564,7 @@ function ProfileStep({
   setHourlyRate: (value: string) => void;
   setTeachingMode: (value: TeachingMode) => void;
   teachingMode: TeachingMode;
+  updateAvatar: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -565,8 +577,12 @@ function ProfileStep({
 
       <div className="flex flex-col items-center gap-4 rounded-lg bg-[var(--surface-container-low)] p-5 sm:flex-row">
         <label className="relative flex h-24 w-24 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-[var(--outline-variant)] bg-white text-3xl text-[var(--outline)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]">
-          +
-          <input accept="image/*" className="absolute inset-0 opacity-0" type="file" />
+          {avatarPreview ? (
+            <img alt="Ảnh đại diện gia sư" className="h-full w-full object-cover" src={avatarPreview} />
+          ) : (
+            "+"
+          )}
+          <input accept="image/*" className="absolute inset-0 opacity-0" onChange={updateAvatar} type="file" />
         </label>
         <div className="text-center sm:text-left">
           <p className="font-semibold">Ảnh đại diện</p>

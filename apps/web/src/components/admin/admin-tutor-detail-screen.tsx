@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DashboardShell, Icon } from "@/components/tutor/dashboard-shell";
-import { mockTutorProfile } from "@/components/tutor/mock-data";
 import { getAccessToken } from "@/lib/auth-storage";
 import {
   approveTutor,
@@ -28,11 +27,7 @@ export function AdminTutorDetailScreen({
   tutorId: string;
 }) {
   const [status, setStatus] = useState<TutorVerificationStatus>(initialStatus);
-  const [profile, setProfile] = useState<TutorProfile>({
-    ...mockTutorProfile,
-    id: tutorId,
-    verificationStatus: initialStatus,
-  });
+  const [profile, setProfile] = useState<TutorProfile | null>(null);
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -57,13 +52,11 @@ export function AdminTutorDetailScreen({
     const token = getAccessToken();
 
     if (!token) {
-      setStatus("APPROVED");
       setApproveOpen(false);
-      setSuccess("approved");
       return;
     }
 
-    approveTutor(token, profile.id)
+    approveTutor(token, tutorId)
       .then((result) => {
         setProfile(result);
         setStatus(result.verificationStatus);
@@ -84,13 +77,11 @@ export function AdminTutorDetailScreen({
     const token = getAccessToken();
 
     if (!token) {
-      setStatus("REJECTED");
       setRejectOpen(false);
-      setSuccess("rejected");
       return;
     }
 
-    rejectTutor(token, profile.id, reason)
+    rejectTutor(token, tutorId, reason)
       .then((result) => {
         setProfile(result);
         setStatus(result.verificationStatus);
@@ -154,45 +145,47 @@ export function AdminTutorDetailScreen({
             </div>
           ) : null}
 
-          {status === "REJECTED" ? <RejectedReason reason={reason || "Bằng cấp không hợp lệ hoặc tài liệu xác minh chưa rõ nét."} /> : null}
+          {!profile ? <DetailLoading /> : null}
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
+          {profile && status === "REJECTED" ? <RejectedReason reason={profile.rejectionReason || reason || "Bằng cấp không hợp lệ hoặc tài liệu xác minh chưa rõ nét."} /> : null}
+
+          {profile ? <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
             <div className="flex flex-col gap-6">
-              <PersonalInfoCard />
-              <TeachingProfileCard />
-              <DocumentsReviewCard status={status} />
+              <PersonalInfoCard profile={profile} />
+              <TeachingProfileCard profile={profile} />
+              <DocumentsReviewCard profile={profile} status={status} />
             </div>
             <aside className="flex flex-col gap-6">
               <SummaryCard status={status} />
               <TimelineCard status={status} />
               <InternalNotes />
             </aside>
-          </div>
+          </div> : null}
         </main>
       </div>
 
-      {approveOpen ? <ApproveModal onCancel={() => setApproveOpen(false)} onConfirm={approve} tutorName={profile.fullName} /> : null}
+      {approveOpen ? <ApproveModal onCancel={() => setApproveOpen(false)} onConfirm={approve} tutorName={profile?.fullName ?? "gia sư"} /> : null}
       {rejectOpen ? (
         <RejectModal
           onCancel={() => setRejectOpen(false)}
           onConfirm={reject}
           reason={reason}
           setReason={setReason}
-          tutorName={profile.fullName}
+          tutorName={profile?.fullName ?? "gia sư"}
         />
       ) : null}
     </DashboardShell>
   );
 }
 
-function PersonalInfoCard() {
+function PersonalInfoCard({ profile }: { profile: TutorProfile }) {
   const items = [
-    ["Họ và tên", "Nguyễn Văn A"],
-    ["Ngày sinh", "15/08/1998"],
-    ["Email", "nguyenvana@email.com"],
-    ["Số điện thoại", "0912 345 678"],
-    ["Địa chỉ hiện tại", "Quận Cầu Giấy, Hà Nội"],
+    ["Họ và tên", profile.fullName],
+    ["Email", profile.email],
+    ["Số điện thoại", profile.phone ?? "Chưa cập nhật"],
+    ["Địa chỉ hiện tại", [profile.locationDistrict, profile.locationCity].filter(Boolean).join(", ") || "Chưa cập nhật"],
   ];
+  const initial = profile.fullName.trim().charAt(0).toUpperCase() || "G";
 
   return (
     <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
@@ -202,7 +195,7 @@ function PersonalInfoCard() {
       </h2>
       <div className="flex flex-col gap-6 md:flex-row">
         <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-highest)] text-5xl font-bold text-[var(--primary)]">
-          A
+          {profile.avatarUrl ? <img alt={profile.fullName} className="h-full w-full object-cover" src={profile.avatarUrl} /> : initial}
         </div>
         <dl className="grid flex-1 grid-cols-1 gap-5 sm:grid-cols-2">
           {items.map(([label, value], index) => (
@@ -217,7 +210,19 @@ function PersonalInfoCard() {
   );
 }
 
-function TeachingProfileCard() {
+function DetailLoading() {
+  return (
+    <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-8 text-sm font-semibold text-[var(--on-surface-variant)] shadow-sm">
+      Đang tải dữ liệu hồ sơ từ database...
+    </section>
+  );
+}
+
+function TeachingProfileCard({ profile }: { profile: TutorProfile }) {
+  const subjectLabels = profile.subjects.length
+    ? profile.subjects.map((item) => `${item.subject.name} - ${levelLabel(item.level)}`)
+    : ["Chưa cập nhật môn học"];
+
   return (
     <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
       <h2 className="mb-5 flex items-center gap-2 border-b border-[var(--outline-variant)]/50 pb-3 text-xl font-semibold">
@@ -227,23 +232,23 @@ function TeachingProfileCard() {
       <div className="space-y-5">
         <div>
           <p className="mb-1 text-xs font-bold uppercase text-[var(--outline)]">Tiêu đề hồ sơ</p>
-          <p className="text-lg font-bold">Gia sư Toán THPT - Kinh nghiệm luyện thi Đại học</p>
+          <p className="text-lg font-bold">{profile.headline ?? "Chưa cập nhật tiêu đề hồ sơ"}</p>
         </div>
         <div>
           <p className="mb-2 text-xs font-bold uppercase text-[var(--outline)]">Giới thiệu bản thân</p>
           <p className="rounded-lg border border-[var(--outline-variant)]/40 bg-[var(--surface-container)] px-4 py-3 text-sm leading-7 text-[var(--on-surface-variant)]">
-            Cựu học sinh chuyên Toán Amsterdam, hiện đang học năm cuối ĐH Bách Khoa Hà Nội. Đã có 5 năm kinh nghiệm gia sư Toán cho học sinh cấp 3, đặc biệt luyện thi THPT Quốc gia. Phương pháp dạy học trực quan, dễ hiểu, bám sát cấu trúc đề thi.
+            {profile.bio ?? "Gia sư chưa cập nhật phần giới thiệu bản thân."}
           </p>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Metric icon="history" label="Kinh nghiệm" value="5 năm" />
-          <Metric icon="payments" label="Mức học phí" value="250k/h" />
-          <Metric icon="location_on" label="Hình thức" value="Online & Offline" />
+          <Metric icon="history" label="Kinh nghiệm" value={`${profile.experienceYears ?? 0} năm`} />
+          <Metric icon="payments" label="Mức học phí" value={profile.hourlyRate ? `${formatCurrency(profile.hourlyRate)}/h` : "Chưa cập nhật"} />
+          <Metric icon="location_on" label="Hình thức" value={teachingModeLabel(profile.teachingMode)} />
         </div>
         <div>
           <p className="mb-2 text-xs font-bold uppercase text-[var(--outline)]">Môn học đăng ký</p>
           <div className="flex flex-wrap gap-2">
-            {["Toán 10", "Toán 11", "Toán 12", "Luyện thi THPT QG"].map((subject) => (
+            {subjectLabels.map((subject) => (
               <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-high)] px-3 py-1 text-sm font-semibold" key={subject}>
                 {subject}
               </span>
@@ -255,14 +260,19 @@ function TeachingProfileCard() {
   );
 }
 
-function DocumentsReviewCard({ status }: { status: TutorVerificationStatus }) {
+function DocumentsReviewCard({ profile, status }: { profile: TutorProfile; status: TutorVerificationStatus }) {
   const rejected = status === "REJECTED";
-  const documents = [
-    ["badge", "CCCD / CMND", "cccd_mat_truoc_sau.jpg", rejected ? "Ảnh bị mờ, cần tải lại" : "Đã tải lên"],
-    ["history_edu", "Bằng cấp / Thẻ SV", "bang_dai_hoc_sp.pdf", rejected ? "Thiếu chứng chỉ đã khai báo" : "Đã tải lên"],
-    ["workspace_premium", "Chứng chỉ", "nghiep_vu_su_pham.pdf", "Đã tải lên"],
-    ["description", "Tài liệu khác", "bang_diem.pdf", "Đã tải lên"],
-  ];
+  const documents = profile.documents.length
+    ? profile.documents.map((document) => ({
+        icon: documentIcon(document.type),
+        id: document.id,
+        title: documentLabel(document.type),
+        file: document.fileName,
+        filePath: document.filePath,
+        note: document.rejectionReason ?? documentStatusLabel(document.status),
+        rejected: document.status === "REJECTED",
+      }))
+    : [];
 
   return (
     <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
@@ -271,31 +281,35 @@ function DocumentsReviewCard({ status }: { status: TutorVerificationStatus }) {
         Tài liệu xác minh
       </h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {documents.map(([icon, title, file, note], index) => {
-          const isRejected = rejected && index < 2;
+        {documents.length ? documents.map((document) => {
+          const isRejected = rejected || document.rejected;
           return (
-            <div className={["rounded-lg border p-4", isRejected ? "border-[var(--error)] bg-[var(--error-container)]/30" : "border-[var(--outline-variant)] bg-[var(--surface)]"].join(" ")} key={title}>
+            <div className={["rounded-lg border p-4", isRejected ? "border-[var(--error)] bg-[var(--error-container)]/30" : "border-[var(--outline-variant)] bg-[var(--surface)]"].join(" ")} key={document.id}>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <Icon name={icon} className={isRejected ? "text-[var(--error)]" : "text-[var(--primary)]"} />
-                  <span className="text-sm font-bold">{title}</span>
+                  <Icon name={document.icon} className={isRejected ? "text-[var(--error)]" : "text-[var(--primary)]"} />
+                  <span className="text-sm font-bold">{document.title}</span>
                 </div>
                 <span className={["rounded px-2 py-0.5 text-[10px] font-bold uppercase", isRejected ? "bg-[var(--error)] text-white" : "bg-[#006444]/10 text-[#004a31]"].join(" ")}>
                   {isRejected ? "Cần kiểm tra" : "Đã tải lên"}
                 </span>
               </div>
               <div className="mb-3 flex h-28 items-center justify-center rounded border border-[var(--outline-variant)] bg-white text-[var(--outline)]">
-                <Icon name={file.endsWith(".pdf") ? "picture_as_pdf" : "image"} className="text-[40px]" />
+                <Icon name={document.file.endsWith(".pdf") ? "picture_as_pdf" : "image"} className="text-[40px]" />
               </div>
-              <p className="truncate text-sm font-semibold">{file}</p>
-              <p className={["mt-1 text-xs", isRejected ? "text-[var(--error)]" : "text-[var(--on-surface-variant)]"].join(" ")}>{note}</p>
-              <button className="mt-3 inline-flex items-center gap-1 rounded border border-[var(--primary)]/30 px-3 py-1.5 text-xs font-bold text-[var(--primary)] hover:bg-[var(--primary)]/5" type="button">
+              <p className="truncate text-sm font-semibold">{document.file}</p>
+              <p className={["mt-1 text-xs", isRejected ? "text-[var(--error)]" : "text-[var(--on-surface-variant)]"].join(" ")}>{document.note}</p>
+              <a className="mt-3 inline-flex items-center gap-1 rounded border border-[var(--primary)]/30 px-3 py-1.5 text-xs font-bold text-[var(--primary)] hover:bg-[var(--primary)]/5" href={document.filePath} rel="noreferrer" target="_blank">
                 <Icon name="visibility" className="text-[16px]" />
                 Xem tài liệu
-              </button>
+              </a>
             </div>
           );
-        })}
+        }) : (
+          <p className="col-span-full rounded-lg border border-dashed border-[var(--outline-variant)] bg-[var(--surface)] p-4 text-sm text-[var(--on-surface-variant)]">
+            Gia sư chưa tải tài liệu xác minh.
+          </p>
+        )}
       </div>
     </section>
   );
@@ -502,4 +516,68 @@ function StatusPill({ status }: { status: TutorVerificationStatus }) {
       {statusLabels[status]}
     </span>
   );
+}
+
+function levelLabel(level: string) {
+  const labels: Record<string, string> = {
+    PRIMARY: "Tiểu học",
+    LOWER_SECONDARY: "Cấp 2",
+    HIGH_SCHOOL: "Cấp 3",
+    UNIVERSITY: "Đại học",
+    BASIC: "Cơ bản",
+    INTERMEDIATE: "Trung cấp",
+    ADVANCED: "Nâng cao",
+    EXAM_PREP: "Luyện thi",
+  };
+
+  return labels[level] ?? level;
+}
+
+function teachingModeLabel(mode: string | null) {
+  if (mode === "ONLINE") return "Online";
+  if (mode === "OFFLINE") return "Trực tiếp";
+  if (mode === "BOTH") return "Online & Offline";
+  return "Chưa cập nhật";
+}
+
+function formatCurrency(value: string) {
+  const amount = Number(value);
+  if (!amount) return value;
+  return new Intl.NumberFormat("vi-VN").format(amount);
+}
+
+function documentLabel(type: string) {
+  const labels: Record<string, string> = {
+    NATIONAL_ID_FRONT: "CCCD mặt trước",
+    NATIONAL_ID_BACK: "CCCD mặt sau",
+    DEGREE: "Bằng cấp / Thẻ sinh viên",
+    CERTIFICATE: "Chứng chỉ",
+    BACKGROUND_CHECK: "Xác minh lý lịch",
+    OTHER: "Tài liệu khác",
+  };
+
+  return labels[type] ?? type;
+}
+
+function documentIcon(type: string) {
+  const icons: Record<string, string> = {
+    NATIONAL_ID_FRONT: "badge",
+    NATIONAL_ID_BACK: "badge",
+    DEGREE: "history_edu",
+    CERTIFICATE: "workspace_premium",
+    BACKGROUND_CHECK: "verified_user",
+    OTHER: "description",
+  };
+
+  return icons[type] ?? "description";
+}
+
+function documentStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    PENDING: "Đang chờ kiểm tra",
+    APPROVED: "Đã duyệt",
+    REJECTED: "Bị từ chối",
+  };
+
+  return labels[status] ?? status;
 }

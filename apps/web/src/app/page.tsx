@@ -14,8 +14,8 @@ export default function Home() {
     <main className="min-h-screen bg-[#f9f9ff] text-[#111c2d]">
       <LandingHeader />
 
-      <section className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-5 pb-16 pt-32 sm:px-8 lg:grid-cols-12 lg:px-10">
-        <div className="relative z-10 flex flex-col gap-6 lg:col-span-7">
+      <section className="grid w-full grid-cols-1 items-center gap-10 px-5 pb-16 pt-32 sm:px-8 lg:grid-cols-12 lg:px-12 2xl:px-16">
+        <div className="relative z-10 flex max-w-5xl flex-col gap-6 lg:col-span-7">
           <div className="flex w-fit items-center gap-2 rounded-full border border-[#c1c7d1] bg-[#f0f3ff] px-4 py-1.5">
             <span className="h-2 w-2 rounded-full bg-[#fea619]" />
             <span className="text-xs font-medium text-[#414750]">
@@ -30,23 +30,23 @@ export default function Home() {
               <span className="text-[#004271]">học tập hiệu quả</span>
             </h1>
             <p className="max-w-xl text-lg leading-8 text-[#414750]">
-              Kết nối với hàng ngàn gia sư chuyên nghiệp. Cá nhân hóa lộ trình
-              học tập để đạt kết quả tốt nhất.
+              Kết nối với hàng ngàn gia sư chuyên nghiệp. Cá nhân hóa lộ trình học tập để đạt
+              kết quả tốt nhất.
             </p>
           </div>
 
-          <div
+          <form
+            action="/tutors"
             className="relative z-20 mt-2 flex flex-col gap-3 rounded-xl border border-[#c1c7d1] bg-white p-2 shadow-[0_10px_25px_rgba(30,41,59,0.1)] md:flex-row"
             id="search"
           >
             <div className="flex flex-1 items-center border-b border-[#c1c7d1] px-4 py-3 md:border-r md:border-b-0">
-              <span className="mr-3 text-[#004271]">Subject</span>
+              <span className="material-symbols-outlined mr-3 text-[#004271]">menu_book</span>
               <div className="flex w-full flex-col">
-                <label className="text-xs font-medium text-[#414750]">
-                  Môn học
-                </label>
+                <label className="text-xs font-medium text-[#414750]">Môn học</label>
                 <input
                   className="w-full border-none bg-transparent p-0 text-base text-[#111c2d] outline-none placeholder:text-[#717781]"
+                  name="q"
                   placeholder="VD: Toán, Tiếng Anh..."
                   type="text"
                 />
@@ -54,24 +54,28 @@ export default function Home() {
             </div>
 
             <div className="flex flex-1 items-center px-4 py-3">
-              <span className="mr-3 text-[#004271]">Level</span>
+              <span className="material-symbols-outlined mr-3 text-[#004271]">school</span>
               <div className="flex w-full flex-col">
-                <label className="text-xs font-medium text-[#414750]">
-                  Trình độ
-                </label>
-                <select className="w-full border-none bg-transparent p-0 text-base text-[#111c2d] outline-none">
-                  <option>Tất cả trình độ</option>
-                  <option>Tiểu học</option>
-                  <option>Trung học cơ sở</option>
-                  <option>Trung học phổ thông</option>
+                <label className="text-xs font-medium text-[#414750]">Trình độ</label>
+                <select
+                  className="w-full border-none bg-transparent p-0 text-base text-[#111c2d] outline-none"
+                  name="level"
+                >
+                  <option value="">Tất cả trình độ</option>
+                  <option value="PRIMARY">Tiểu học</option>
+                  <option value="LOWER_SECONDARY">Cấp 2</option>
+                  <option value="HIGH_SCHOOL">Cấp 3</option>
+                  <option value="UNIVERSITY">Đại học</option>
+                  <option value="EXAM_PREP">Luyện thi</option>
                 </select>
               </div>
             </div>
 
             <button className="flex items-center justify-center gap-2 rounded-lg bg-[#855300] px-8 py-4 text-sm font-semibold whitespace-nowrap text-white shadow-sm transition hover:bg-[#653e00]">
+              <span className="material-symbols-outlined text-[20px]">search</span>
               Tìm kiếm
             </button>
-          </div>
+          </form>
 
           <div className="mt-2 flex items-center gap-4">
             <div className="flex -space-x-3">
@@ -86,28 +90,22 @@ export default function Home() {
               ))}
             </div>
             <p className="text-sm text-[#414750]">
-              <strong className="font-semibold text-[#111c2d]">10,000+</strong>{" "}
-              học viên đã tin tưởng
+              <strong className="font-semibold text-[#111c2d]">10,000+</strong> học viên đã tin
+              tưởng
             </p>
           </div>
         </div>
 
-        <div className="relative hidden lg:col-span-5 lg:block">
+        <div className="relative hidden justify-self-end lg:col-span-5 lg:block lg:w-full lg:max-w-[620px] 2xl:max-w-[720px]">
           <div className="absolute inset-0 rotate-3 rounded-[2rem] bg-[#004271]/5" />
           <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] border border-[#c1c7d1] bg-white shadow-[0_4px_12px_rgba(30,41,59,0.05)]">
-            <img
-              alt="Tutor and student"
-              className="h-full w-full object-cover"
-              src={heroImage}
-            />
+            <img alt="Tutor and student" className="h-full w-full object-cover" src={heroImage} />
             <div className="absolute bottom-6 left-6 flex items-center gap-3 rounded-xl border border-[#c1c7d1] bg-white p-4 shadow-[0_10px_25px_rgba(30,41,59,0.1)]">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#006444] text-white">
-                OK
+                <span className="material-symbols-outlined icon-fill text-[20px]">verified</span>
               </div>
               <div>
-                <p className="text-xs font-medium text-[#414750]">
-                  Gia sư đã xác thực
-                </p>
+                <p className="text-xs font-medium text-[#414750]">Gia sư đã xác thực</p>
                 <p className="text-xl font-bold text-[#111c2d]">100%</p>
               </div>
             </div>
@@ -115,21 +113,16 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="mx-auto mt-8 max-w-7xl border-t border-[#c1c7d1] bg-[#d8e3fb] px-5 py-12 sm:px-8 lg:px-10">
+      <footer className="mt-8 w-full border-t border-[#c1c7d1] bg-[#d8e3fb] px-5 py-12 sm:px-8 lg:px-12 2xl:px-16">
         <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
           <div>
-            <span className="mb-4 block text-xl font-bold text-[#111c2d]">
-              TutorConnect
-            </span>
+            <span className="mb-4 block text-xl font-bold text-[#111c2d]">TutorConnect</span>
             <p className="text-sm leading-6 text-[#414750]">
-              Kết nối tri thức, kiến tạo tương lai. Nền tảng học tập uy tín
-              hàng đầu Việt Nam.
+              Kết nối tri thức, kiến tạo tương lai. Nền tảng học tập uy tín hàng đầu Việt Nam.
             </p>
           </div>
           <div id="how-it-works">
-            <h2 className="mb-4 text-sm font-semibold text-[#111c2d]">
-              Về chúng tôi
-            </h2>
+            <h2 className="mb-4 text-sm font-semibold text-[#111c2d]">Về chúng tôi</h2>
             <ul className="space-y-2 text-sm text-[#414750]">
               <li>
                 <a className="transition hover:text-[#004271]" href="#">
@@ -163,11 +156,8 @@ export default function Home() {
           <p className="text-sm text-[#414750]">
             © 2026 TutorConnect. Empowering education through technology.
           </p>
-          <a
-            className="rounded-full p-1 text-[#414750] transition hover:text-[#004271]"
-            href="#"
-          >
-            Language
+          <a className="rounded-full p-1 text-[#414750] transition hover:text-[#004271]" href="#">
+            Tiếng Việt
           </a>
         </div>
       </footer>

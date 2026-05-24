@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DashboardShell, Icon } from "@/components/tutor/dashboard-shell";
-import { adminTutorRows } from "@/components/tutor/mock-data";
 import { getAccessToken } from "@/lib/auth-storage";
 import { getAdminTutors, type AdminTutorListItem } from "@/lib/tutor-api";
 
 export default function AdminDashboardPage() {
-  const [rows, setRows] = useState<AdminTutorListItem[]>(adminTutorRows);
+  const [rows, setRows] = useState<AdminTutorListItem[]>([]);
 
   useEffect(() => {
     const token = getAccessToken();
