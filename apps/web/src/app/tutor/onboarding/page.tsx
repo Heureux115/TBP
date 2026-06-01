@@ -129,13 +129,13 @@ export default function TutorOnboardingPage() {
 
     getMyTutorProfile(token)
       .then((profile) => {
-        setHeadline(profile.headline ?? "");
-        setBio(profile.bio ?? "");
-        setExperienceYears(profile.experienceYears?.toString() ?? "");
-        setHourlyRate(profile.hourlyRate ?? "");
+        setHeadline(profile.headline || "");
+        setBio(profile.bio || "");
+        setExperienceYears(profile.experienceYears?.toString() || "");
+        setHourlyRate(profile.hourlyRate || "");
         setTeachingMode(profile.teachingMode);
-        setCity(profile.locationCity ?? "");
-        setDistrict(profile.locationDistrict ?? "");
+        setCity(profile.locationCity || "");
+        setDistrict(profile.locationDistrict || "");
         setExistingDocuments(profile.documents);
         setAvatarPreview(profile.avatarUrl);
         setSubjects(
@@ -219,12 +219,12 @@ export default function TutorOnboardingPage() {
   function updateDocument(key: DocumentKey, event: ChangeEvent<HTMLInputElement>) {
     setDocuments((current) => ({
       ...current,
-      [key]: event.target.files?.[0] ?? null,
+      [key]: event.target.files?.[0] || null,
     }));
   }
 
   function updateAvatar(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
+    const file = event.target.files?.[0] || null;
     setAvatarFile(file);
     setAvatarPreview(file ? URL.createObjectURL(file) : null);
   }
@@ -821,7 +821,7 @@ function DocumentsStep({
                 key={key}
               >
                 <div>
-                  <p className="font-semibold">{file?.name ?? documentConfig[key].title}</p>
+                  <p className="font-semibold">{file?.name || documentConfig[key].title}</p>
                   <p className="text-sm text-[var(--on-surface-variant)]">
                     {documentConfig[key].title} • {file ? "Sẵn sàng tải lên" : "Đã lưu trên hệ thống"}
                   </p>

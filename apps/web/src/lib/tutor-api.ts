@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export type TutorVerificationStatus = "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 export type TeachingMode = "ONLINE" | "OFFLINE" | "BOTH";
@@ -45,6 +45,23 @@ export type TutorDocument = {
   rejectionReason: string | null;
   reviewedAt: string | null;
 };
+
+export type TutorAvailabilitySlot = {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  isBooked: boolean;
+  isAvailable: boolean;
+};
+
+export type TutorAvailability = {
+  tutorId: string;
+  weekStart: string;
+  weekEnd: string;
+  slots: TutorAvailabilitySlot[];
+};
+
+export type AvailabilityRepeat = "NONE" | "WEEKLY" | "MONTHLY";
 
 export type TutorProfile = {
   id: string;
@@ -157,6 +174,25 @@ export function submitTutorVerification(token: string) {
 
 export function getTutorDocuments(token: string) {
   return request<TutorDocument[]>("/tutors/me/documents", token);
+}
+
+export function getMyTutorAvailability(token: string, weekStart?: string) {
+  const query = weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : "";
+  return request<TutorAvailability>(`/tutors/me/availability${query}`, token);
+}
+
+export function createTutorAvailabilitySlot(token: string, payload: { startsAt: string; endsAt: string; repeat?: AvailabilityRepeat; occurrences?: number }) {
+  return request<{ slots: TutorAvailabilitySlot[] }>("/tutors/me/availability", token, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteTutorAvailabilitySlot(token: string, id: string) {
+  return request<TutorAvailabilitySlot>("/tutors/me/availability", token, {
+    method: "DELETE",
+    body: JSON.stringify({ id }),
+  });
 }
 
 export function createTutorDocument(token: string, payload: CreateTutorDocumentPayload) {

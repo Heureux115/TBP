@@ -17,5 +17,5 @@ export default async function AdminTutorsPage({
   const params = await searchParams;
   const initialState = params.state ? states[params.state] : "list";
 
-  return <AdminTutorsScreen initialState={initialState ?? "list"} />;
+  return <AdminTutorsScreen initialState={initialState || "list"} />;
 }

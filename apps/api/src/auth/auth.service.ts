@@ -13,9 +13,11 @@ import { createHash, randomInt, randomUUID } from 'crypto';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import {
   AuthenticatedUser,
@@ -25,6 +27,7 @@ import {
 
 const BCRYPT_COST = 12;
 const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type PublicUser = {
@@ -230,6 +233,81 @@ export class AuthService {
     return this.regenerateVerificationCode(user.id);
   }
 
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const email = this.normalizeEmail(dto.email);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email,
+        deletedAt: null,
+      },
+    });
+
+    if (!user) {
+      return { message: 'If the email exists, a reset code was sent.' };
+    }
+
+    const reset = this.createPasswordResetOtp();
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash: this.hashToken(reset.otp),
+        passwordResetTokenExpiresAt: reset.expiresAt,
+      },
+    });
+
+    await this.emailService.sendPasswordResetOtp({
+      to: user.email,
+      fullName: user.fullName,
+      otp: reset.otp,
+    });
+
+    return { message: 'If the email exists, a reset code was sent.' };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const email = this.normalizeEmail(dto.email);
+    const tokenHash = this.hashToken(dto.token);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email,
+        passwordResetTokenHash: tokenHash,
+        passwordResetTokenExpiresAt: {
+          gt: new Date(),
+        },
+        deletedAt: null,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('invalid or expired reset token');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_COST);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          passwordResetTokenHash: null,
+          passwordResetTokenExpiresAt: null,
+        },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: {
+          userId: user.id,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      }),
+    ]);
+
+    return { message: 'Password has been reset.' };
+  }
+
   private async regenerateVerificationCode(userId: string) {
     const verification = this.createEmailOtp();
 
@@ -326,6 +404,13 @@ export class AuthService {
     return {
       otp: randomInt(100000, 1000000).toString(),
       expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+    };
+  }
+
+  private createPasswordResetOtp() {
+    return {
+      otp: randomInt(100000, 1000000).toString(),
+      expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
     };
   }
 

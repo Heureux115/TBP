@@ -138,6 +138,12 @@ export default function LoginPage() {
                 </div>
               </label>
 
+              <div className="text-right">
+                <Link className="text-sm font-semibold text-[#004271] transition hover:underline" href="/auth/forgot-password">
+                  Quên mật khẩu?
+                </Link>
+              </div>
+
               <button
                 className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#004271] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#001d35] disabled:opacity-60"
                 disabled={isSubmitting}

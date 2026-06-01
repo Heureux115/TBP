@@ -42,7 +42,7 @@ const statusCopy: Record<
 
 export function TutorProfileScreen({ initialStatus }: { initialStatus: TutorVerificationStatus }) {
   const [profile, setProfile] = useState<TutorProfile | null>(null);
-  const status = profile?.verificationStatus ?? initialStatus;
+  const status = profile?.verificationStatus || initialStatus;
   const copy = statusCopy[status];
   const completion = status === "DRAFT" ? 25 : status === "REJECTED" ? 80 : 100;
 
@@ -227,7 +227,7 @@ function IdentityCard({ profile, status }: { profile: TutorProfile; status: Tuto
         </div>
       </div>
       <h3 className="text-2xl font-semibold">{profile.fullName}</h3>
-      <p className="mt-1 text-sm text-[var(--on-surface-variant)]">{profile.headline ?? "Chưa cập nhật tiêu đề"}</p>
+      <p className="mt-1 text-sm text-[var(--on-surface-variant)]">{profile.headline || "Chưa cập nhật tiêu đề"}</p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         {(profile.subjects.length ? profile.subjects.slice(0, 3).map((item) => item.subject.name) : ["Chưa cập nhật"]).map((item) => (
           <span className="rounded-full bg-[var(--surface-container)] px-3 py-1 text-xs font-semibold text-[var(--on-surface-variant)]" key={item}>
@@ -238,7 +238,7 @@ function IdentityCard({ profile, status }: { profile: TutorProfile; status: Tuto
       <div className="my-5 h-px bg-[var(--outline-variant)]" />
       <div className="space-y-3 text-left text-sm">
         <InfoLine icon="mail" text={profile.email} />
-        <InfoLine icon="call" text={profile.phone ?? "Chưa cập nhật"} />
+        <InfoLine icon="call" text={profile.phone || "Chưa cập nhật"} />
         <InfoLine icon="location_on" text={location} />
       </div>
     </div>
@@ -258,7 +258,7 @@ function BioCard({ profile }: { profile: TutorProfile }) {
     <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
       <h3 className="mb-3 text-xl font-semibold">Giới thiệu bản thân</h3>
       <p className="text-sm leading-7 text-[var(--on-surface-variant)]">
-        {profile.bio ?? "Chưa cập nhật phần giới thiệu bản thân."}
+        {profile.bio || "Chưa cập nhật phần giới thiệu bản thân."}
       </p>
     </section>
   );
@@ -267,7 +267,7 @@ function BioCard({ profile }: { profile: TutorProfile }) {
 function StatsGrid({ profile }: { profile: TutorProfile }) {
   const location = [profile.locationDistrict, profile.locationCity].filter(Boolean).join(", ") || "Chưa cập nhật";
   const stats = [
-    ["school", "Kinh nghiệm", `${profile.experienceYears ?? 0} năm`],
+    ["school", "Kinh nghiệm", `${profile.experienceYears || 0} năm`],
     ["payments", "Mức học phí", profile.hourlyRate ? `${new Intl.NumberFormat("vi-VN").format(Number(profile.hourlyRate))}đ/giờ` : "Chưa cập nhật"],
     ["cast_for_education", "Hình thức dạy", teachingModeLabel(profile.teachingMode)],
     ["location_on", "Khu vực", location],

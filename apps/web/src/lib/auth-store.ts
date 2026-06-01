@@ -18,6 +18,13 @@ let snapshot: AuthSnapshot = {
   error: null,
 };
 
+const serverSnapshot: AuthSnapshot = {
+  token: null,
+  user: null,
+  isLoading: false,
+  error: null,
+};
+
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -34,12 +41,7 @@ function getSnapshot() {
 }
 
 function getServerSnapshot() {
-  return {
-    token: null,
-    user: null,
-    isLoading: false,
-    error: null,
-  };
+  return serverSnapshot;
 }
 
 function subscribe(listener: () => void) {

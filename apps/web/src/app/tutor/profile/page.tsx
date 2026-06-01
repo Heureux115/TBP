@@ -16,5 +16,5 @@ export default async function TutorProfilePage({
   const params = await searchParams;
   const initialStatus = params.status ? statusMap[params.status] : "PENDING_REVIEW";
 
-  return <TutorProfileScreen initialStatus={initialStatus ?? "PENDING_REVIEW"} />;
+  return <TutorProfileScreen initialStatus={initialStatus || "PENDING_REVIEW"} />;
 }

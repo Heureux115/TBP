@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../auth/types/auth.types';
@@ -25,6 +34,11 @@ export class BookingsController {
     return this.bookingsService.listMine(request.user);
   }
 
+  @Get(':id')
+  getOne(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    return this.bookingsService.getOne(request.user, id);
+  }
+
   @Patch(':id/cancel')
   cancel(
     @Req() request: AuthenticatedRequest,
@@ -32,5 +46,15 @@ export class BookingsController {
     @Body() dto: CancelBookingDto,
   ) {
     return this.bookingsService.cancel(request.user, id, dto.reason);
+  }
+
+  @Patch(':id/confirm')
+  confirm(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    return this.bookingsService.confirm(request.user, id);
+  }
+
+  @Patch(':id/complete')
+  complete(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    return this.bookingsService.complete(request.user, id);
   }
 }
