@@ -34,7 +34,7 @@ const levelLabels: Record<PublicSubjectLevel, string> = {
 };
 
 function formatMoney(value: string | null) {
-  const amount = Number(value ?? 0);
+  const amount = Number(value || 0);
   if (!amount) return "Liên hệ";
   return `${new Intl.NumberFormat("vi-VN").format(amount)}đ`;
 }
@@ -49,20 +49,20 @@ export function TutorSearchScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const forcedState = searchParams.get("state") as ScreenState | null;
-  const [state, setState] = useState<ScreenState>(forcedState ?? "loading");
+  const [state, setState] = useState<ScreenState>(forcedState && forcedState !== "ready" ? "loading" : "ready");
   const [items, setItems] = useState<PublicTutorCard[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
 
-  const query = searchParams.get("q") ?? "";
-  const subjectId = searchParams.get("subjectId") ?? "";
-  const level = (searchParams.get("level") as PublicSubjectLevel | null) ?? "";
-  const city = searchParams.get("city") ?? "";
-  const teachingMode = (searchParams.get("teachingMode") as PublicTeachingMode | null) ?? "";
-  const minPrice = searchParams.get("minPrice") ?? "";
-  const maxPrice = searchParams.get("maxPrice") ?? "";
-  const sort = (searchParams.get("sort") as TutorSearchSort | null) ?? "RELEVANCE";
+  const query = searchParams.get("q") || "";
+  const subjectId = searchParams.get("subjectId") || "";
+  const level = (searchParams.get("level") as PublicSubjectLevel | null) || "";
+  const city = searchParams.get("city") || "";
+  const teachingMode = (searchParams.get("teachingMode") as PublicTeachingMode | null) || "";
+  const minPrice = searchParams.get("minPrice") || "";
+  const maxPrice = searchParams.get("maxPrice") || "";
+  const sort = (searchParams.get("sort") as TutorSearchSort | null) || "RELEVANCE";
   const effectiveState = forcedState && forcedState !== "ready" ? forcedState : state;
 
   useEffect(() => {
@@ -364,7 +364,7 @@ function TutorCard({ tutor, image }: { tutor: PublicTutorCard; image: string }) 
     <article className="group overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white/90 p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-[var(--surface-container-high)] shadow-sm sm:h-32 sm:w-32">
-          <img alt={tutor.fullName} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" src={tutor.avatarUrl ?? image} />
+          <img alt={tutor.fullName} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" src={tutor.avatarUrl || image} />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex items-start justify-between gap-3">
@@ -373,7 +373,7 @@ function TutorCard({ tutor, image }: { tutor: PublicTutorCard; image: string }) 
                 {tutor.fullName}
               </h2>
               <p className="line-clamp-2 text-sm font-semibold text-[var(--primary)]">
-                {tutor.headline ?? "Gia sư chuyên môn cao"}
+                {tutor.headline || "Gia sư chuyên môn cao"}
               </p>
             </div>
             <div className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--tertiary-fixed)] px-3 py-1 text-xs font-semibold text-[var(--tertiary)]">

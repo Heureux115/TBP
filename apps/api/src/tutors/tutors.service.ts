@@ -5,10 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { mkdir, writeFile } from 'fs/promises';
-import { extname, join, resolve } from 'path';
+import { extname, resolve } from 'path';
 import { randomUUID } from 'crypto';
 import {
   AdminAuditAction,
+  BookingStatus,
+  PaymentStatus,
+  PayoutStatus,
   Prisma,
   TeachingMode,
   SubjectLevel,
@@ -21,6 +24,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/auth.types';
 import { CreateTutorDocumentDto } from './dto/create-tutor-document.dto';
+import {
+  AvailabilityRepeat,
+  CreateAvailabilitySlotDto,
+} from './dto/tutor-availability.dto';
 import { UploadUrlDto } from './dto/upload-url.dto';
 import { UpsertTutorProfileDto } from './dto/upsert-tutor-profile.dto';
 import {
@@ -177,6 +184,7 @@ export class TutorsService {
           gte: start,
           lt: end,
         },
+        isBooked: false,
       },
       orderBy: {
         startsAt: 'asc',
@@ -208,6 +216,177 @@ export class TutorsService {
     });
 
     return this.serializeProfile(profile);
+  }
+
+  async getMyAvailability(user: AuthenticatedUser, weekStart?: string) {
+    this.assertTutor(user);
+
+    const profile = await this.prisma.tutorProfile.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id },
+      update: {},
+      select: { id: true },
+    });
+
+    return this.getAvailabilityForProfile(profile.id, weekStart);
+  }
+
+  async createAvailabilitySlot(
+    user: AuthenticatedUser,
+    dto: CreateAvailabilitySlotDto,
+  ) {
+    this.assertTutor(user);
+
+    const startsAt = new Date(dto.startsAt);
+    const endsAt = new Date(dto.endsAt);
+    const repeat = dto.repeat ?? AvailabilityRepeat.NONE;
+    const occurrences =
+      repeat === AvailabilityRepeat.NONE ? 1 : (dto.occurrences ?? 4);
+
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+      throw new BadRequestException('availability time must be valid');
+    }
+
+    if (startsAt <= new Date()) {
+      throw new BadRequestException('availability slot must be in the future');
+    }
+
+    if (endsAt <= startsAt) {
+      throw new BadRequestException('availability end must be after start');
+    }
+
+    const durationMinutes =
+      (endsAt.getTime() - startsAt.getTime()) / (60 * 1000);
+
+    if (durationMinutes < 30 || durationMinutes > 240) {
+      throw new BadRequestException(
+        'availability slot duration must be between 30 and 240 minutes',
+      );
+    }
+
+    if (occurrences < 1 || occurrences > 24) {
+      throw new BadRequestException('occurrences must be between 1 and 24');
+    }
+
+    const profile = await this.prisma.tutorProfile.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id },
+      update: {},
+      select: { id: true },
+    });
+
+    const slotsToCreate = Array.from({ length: occurrences }, (_, index) => {
+      const slotStart = this.shiftAvailabilityDate(startsAt, repeat, index);
+      const slotEnd = this.shiftAvailabilityDate(endsAt, repeat, index);
+
+      return { startsAt: slotStart, endsAt: slotEnd };
+    });
+
+    const overlapping = await this.prisma.availabilitySlot.findFirst({
+      where: {
+        tutorProfileId: profile.id,
+        deletedAt: null,
+        OR: slotsToCreate.map((slot) => ({
+          startsAt: { lt: slot.endsAt },
+          endsAt: { gt: slot.startsAt },
+        })),
+      },
+      select: { id: true },
+    });
+
+    if (overlapping) {
+      throw new BadRequestException('availability slot overlaps existing slot');
+    }
+
+    const created = await this.prisma.$transaction(
+      slotsToCreate.map((slot) =>
+        this.prisma.availabilitySlot.create({
+          data: {
+            tutorProfileId: profile.id,
+            startsAt: slot.startsAt,
+            endsAt: slot.endsAt,
+          },
+        }),
+      ),
+    );
+
+    return {
+      slots: created.map((slot) => this.serializeAvailabilitySlot(slot)),
+    };
+  }
+
+  async deleteAvailabilitySlot(user: AuthenticatedUser, id: string) {
+    this.assertTutor(user);
+
+    const profile = await this.prisma.tutorProfile.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('tutor profile not found');
+    }
+
+    const slot = await this.prisma.availabilitySlot.findFirst({
+      where: { id, tutorProfileId: profile.id, deletedAt: null },
+      include: {
+        booking: {
+          include: {
+            payment: true,
+          },
+        },
+      },
+    });
+
+    if (!slot) {
+      throw new NotFoundException('availability slot not found');
+    }
+
+    if (slot.booking?.status === BookingStatus.COMPLETED) {
+      throw new BadRequestException('completed booking slot cannot be removed');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (slot.booking) {
+        if (slot.booking.payment?.status === PaymentStatus.PAID) {
+          await tx.payment.update({
+            where: { id: slot.booking.payment.id },
+            data: {
+              status: PaymentStatus.REFUNDED,
+              payoutStatus: PayoutStatus.REFUNDED,
+              refundedAt: new Date(),
+              refundReason: 'tutor removed the teaching slot',
+            },
+          });
+        } else if (slot.booking.payment?.status === PaymentStatus.PENDING) {
+          await tx.payment.update({
+            where: { id: slot.booking.payment.id },
+            data: {
+              status: PaymentStatus.CANCELLED,
+              payoutStatus: PayoutStatus.CANCELLED,
+            },
+          });
+        }
+
+        await tx.booking.update({
+          where: { id: slot.booking.id },
+          data: {
+            status: BookingStatus.CANCELLED,
+            cancellationReason: 'Gia sư đã xóa lịch dạy.',
+          },
+        });
+      }
+
+      return tx.availabilitySlot.update({
+        where: { id },
+        data: {
+          isBooked: false,
+          deletedAt: new Date(),
+        },
+      });
+    });
+
+    return this.serializeAvailabilitySlot(updated);
   }
 
   async upsertMyProfile(user: AuthenticatedUser, dto: UpsertTutorProfileDto) {
@@ -673,6 +852,69 @@ export class TutorsService {
     start.setUTCDate(start.getUTCDate() + offset);
 
     return start;
+  }
+
+  private async getAvailabilityForProfile(
+    tutorProfileId: string,
+    weekStart?: string,
+  ) {
+    const start = this.normalizeWeekStart(weekStart);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 7);
+
+    const slots = await this.prisma.availabilitySlot.findMany({
+      where: {
+        tutorProfileId,
+        deletedAt: null,
+        startsAt: {
+          gte: start,
+          lt: end,
+        },
+      },
+      orderBy: {
+        startsAt: 'asc',
+      },
+    });
+
+    return {
+      tutorId: tutorProfileId,
+      weekStart: start.toISOString(),
+      weekEnd: end.toISOString(),
+      slots: slots.map((slot) => this.serializeAvailabilitySlot(slot)),
+    };
+  }
+
+  private serializeAvailabilitySlot(slot: {
+    id: string;
+    startsAt: Date;
+    endsAt: Date;
+    isBooked: boolean;
+  }) {
+    return {
+      id: slot.id,
+      startsAt: slot.startsAt.toISOString(),
+      endsAt: slot.endsAt.toISOString(),
+      isBooked: slot.isBooked,
+      isAvailable: !slot.isBooked,
+    };
+  }
+
+  private shiftAvailabilityDate(
+    value: Date,
+    repeat: AvailabilityRepeat,
+    index: number,
+  ) {
+    const shifted = new Date(value);
+
+    if (repeat === AvailabilityRepeat.WEEKLY) {
+      shifted.setUTCDate(shifted.getUTCDate() + index * 7);
+    }
+
+    if (repeat === AvailabilityRepeat.MONTHLY) {
+      shifted.setUTCMonth(shifted.getUTCMonth() + index);
+    }
+
+    return shifted;
   }
 
   private assertUploadFile(

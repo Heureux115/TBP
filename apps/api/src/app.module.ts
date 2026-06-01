@@ -9,6 +9,10 @@ import { SubjectsModule } from './subjects/subjects.module';
 import { TutorsModule } from './tutors/tutors.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { DocsModule } from './docs/docs.module';
+import { PaymentsModule } from './payments/payments.module';
+import { MessagesModule } from './messages/messages.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
   imports: [
@@ -22,6 +26,10 @@ import { DocsModule } from './docs/docs.module';
     SubjectsModule,
     BookingsModule,
     DocsModule,
+    PaymentsModule,
+    MessagesModule,
+    ReviewsModule,
+    WalletModule,
   ],
   controllers: [AppController],
   providers: [AppService],

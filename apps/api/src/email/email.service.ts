@@ -42,6 +42,35 @@ export class EmailService {
     }
   }
 
+  async sendPasswordResetOtp(params: {
+    to: string;
+    fullName: string;
+    otp: string;
+  }) {
+    if (!this.resend) {
+      throw new ServiceUnavailableException('email provider is not configured');
+    }
+
+    const from =
+      this.configService.get<string>('EMAIL_FROM') ??
+      'Tutor Booking <onboarding@resend.dev>';
+    const { error } = await this.withTimeout(
+      this.resend.emails.send({
+        from,
+        to: params.to,
+        subject: 'Your Tutor Booking password reset code',
+        html: this.renderPasswordResetOtpEmail(params.fullName, params.otp),
+      }),
+      EMAIL_SEND_TIMEOUT_MS,
+    );
+
+    if (error) {
+      throw new ServiceUnavailableException(
+        `email provider rejected the request: ${error.message}`,
+      );
+    }
+  }
+
   private async withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
     let timeout: NodeJS.Timeout | undefined;
 
@@ -74,6 +103,19 @@ export class EmailService {
         <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 24px 0;">${otp}</p>
         <p>This code expires in 10 minutes.</p>
         <p>If you did not create this account, you can ignore this email.</p>
+      </div>
+    `;
+  }
+
+  private renderPasswordResetOtpEmail(fullName: string, otp: string) {
+    return `
+      <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
+        <h1 style="font-size: 20px;">Reset your Tutor Booking password</h1>
+        <p>Hi ${this.escapeHtml(fullName)},</p>
+        <p>Use this code to reset your password:</p>
+        <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 24px 0;">${otp}</p>
+        <p>This code expires in 15 minutes.</p>
+        <p>If you did not request a password reset, you can ignore this email.</p>
       </div>
     `;
   }

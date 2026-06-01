@@ -38,7 +38,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     if (response && 'message' in response) {
-      return (response as { message: unknown }).message;
+      return response.message;
     }
 
     if (exception instanceof Error && process.env.NODE_ENV !== 'production') {

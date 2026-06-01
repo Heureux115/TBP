@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Tutor Booking Platform",
-  description: "Find, book, and manage trusted tutoring sessions.",
+  title: "TutorConnect - Nền tảng đặt gia sư",
+  description: "Tìm, đặt lịch và quản lý các buổi học gia sư đáng tin cậy.",
 };
 
 export default function RootLayout({

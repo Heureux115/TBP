@@ -2,582 +2,192 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { DashboardShell, Icon } from "@/components/tutor/dashboard-shell";
+import { AdminLayout, Icon } from "@/components/admin/admin-layout";
 import { getAccessToken } from "@/lib/auth-storage";
-import {
-  approveTutor,
-  getAdminTutor,
-  rejectTutor,
-  type TutorProfile,
-  type TutorVerificationStatus,
-} from "@/lib/tutor-api";
+import { approveTutor, getAdminTutor, rejectTutor, type TutorProfile, type TutorVerificationStatus } from "@/lib/tutor-api";
 
 const statusLabels: Record<TutorVerificationStatus, string> = {
-  DRAFT: "Nháp",
-  PENDING_REVIEW: "Đang chờ duyệt",
+  DRAFT: "Draft",
+  PENDING_REVIEW: "Chờ duyệt",
   APPROVED: "Đã duyệt",
   REJECTED: "Bị từ chối",
 };
 
-export function AdminTutorDetailScreen({
-  initialStatus,
-  tutorId,
-}: {
-  initialStatus: TutorVerificationStatus;
-  tutorId: string;
-}) {
-  const [status, setStatus] = useState<TutorVerificationStatus>(initialStatus);
+function money(value: string | null) {
+  return value ? `${new Intl.NumberFormat("vi-VN").format(Number(value))}đ/h` : "Chưa cập nhật";
+}
+
+export function AdminTutorDetailScreen({ initialStatus, tutorId }: { initialStatus: TutorVerificationStatus; tutorId: string }) {
   const [profile, setProfile] = useState<TutorProfile | null>(null);
-  const [approveOpen, setApproveOpen] = useState(false);
-  const [rejectOpen, setRejectOpen] = useState(false);
+  const [status, setStatus] = useState<TutorVerificationStatus>(initialStatus);
   const [reason, setReason] = useState("");
-  const [success, setSuccess] = useState<"approved" | "rejected" | null>(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const token = getAccessToken();
-
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     getAdminTutor(token, tutorId)
       .then((result) => {
         setProfile(result);
         setStatus(result.verificationStatus);
+        setReason(result.rejectionReason || "");
       })
-      .catch(() => undefined);
+      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Không thể tải hồ sơ gia sư."));
   }, [tutorId]);
 
-  function approve() {
+  async function handleApprove() {
     const token = getAccessToken();
-
-    if (!token) {
-      setApproveOpen(false);
-      return;
+    if (!token) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await approveTutor(token, tutorId);
+      setProfile(result);
+      setStatus(result.verificationStatus);
+      setMessage("Hồ sơ đã được duyệt.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không thể duyệt hồ sơ.");
+    } finally {
+      setBusy(false);
     }
-
-    approveTutor(token, tutorId)
-      .then((result) => {
-        setProfile(result);
-        setStatus(result.verificationStatus);
-        setSuccess("approved");
-      })
-      .catch(() => {
-        setStatus("APPROVED");
-        setSuccess("approved");
-      })
-      .finally(() => setApproveOpen(false));
   }
 
-  function reject() {
-    if (!reason.trim()) {
-      return;
-    }
-
+  async function handleReject() {
     const token = getAccessToken();
-
-    if (!token) {
-      setRejectOpen(false);
-      return;
+    if (!token || !reason.trim()) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await rejectTutor(token, tutorId, reason.trim());
+      setProfile(result);
+      setStatus(result.verificationStatus);
+      setMessage("Hồ sơ đã bị từ chối và lý do đã được lưu.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không thể từ chối hồ sơ.");
+    } finally {
+      setBusy(false);
     }
-
-    rejectTutor(token, tutorId, reason)
-      .then((result) => {
-        setProfile(result);
-        setStatus(result.verificationStatus);
-        setSuccess("rejected");
-      })
-      .catch(() => {
-        setStatus("REJECTED");
-        setSuccess("rejected");
-      })
-      .finally(() => setRejectOpen(false));
   }
 
   return (
-    <DashboardShell active="approvals" mode="admin">
-      <div className="min-h-screen bg-[var(--surface)]">
-        <header className="sticky top-0 z-30 flex flex-col gap-4 border-b border-[var(--outline-variant)] bg-white/95 px-5 py-4 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between md:px-10">
-          <div className="flex items-center gap-4">
-            <Link className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" href="/admin/tutors">
+    <AdminLayout active="tutors" searchPlaceholder="Tìm hồ sơ gia sư...">
+      <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-5 py-8 md:px-10">
+        <header className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <Link className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)]" href="/admin/tutors">
               <Icon name="arrow_back" />
+              Quay lại danh sách
             </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Chi tiết hồ sơ đăng ký</h1>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <StatusPill status={status} />
-                <span className="text-sm text-[var(--on-surface-variant)]">ID: GS-2026-1042</span>
-              </div>
-            </div>
+            <h1 className="text-3xl font-black text-[var(--primary)]">Chi tiết hồ sơ gia sư</h1>
+            <p className="mt-1 text-sm text-[var(--on-surface-variant)]">Kiểm tra thông tin, tài liệu và duyệt hồ sơ.</p>
           </div>
-          <div className="flex gap-2">
-            {status === "PENDING_REVIEW" ? (
-              <>
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--outline)] px-5 py-2.5 text-sm font-bold text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]"
-                  onClick={() => setRejectOpen(true)}
-                  type="button"
-                >
-                  <Icon name="close" className="text-[18px]" />
-                  Từ chối
-                </button>
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[var(--primary-container)]"
-                  onClick={() => setApproveOpen(true)}
-                  type="button"
-                >
-                  <Icon name="check" className="text-[18px]" />
-                  Duyệt hồ sơ
-                </button>
-              </>
-            ) : (
-              <Link className="rounded-lg bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white" href="/admin/tutors">
-                Quay lại danh sách
-              </Link>
-            )}
-          </div>
+          <Status status={status} />
         </header>
 
-        <main className="mx-auto flex max-w-[1280px] flex-col gap-6 p-5 md:p-10">
-          {success ? (
-            <div className={["rounded-xl border p-4 text-sm font-semibold", success === "approved" ? "border-[#006444]/30 bg-[#006444]/10 text-[#004a31]" : "border-[var(--error)] bg-[var(--error-container)] text-[var(--error)]"].join(" ")}>
-              {success === "approved" ? "Hồ sơ đã được duyệt thành công." : "Hồ sơ đã bị từ chối và lý do đã được lưu."}
-            </div>
-          ) : null}
+        {error ? <p className="rounded-lg bg-[var(--error-container)] p-3 text-sm font-semibold text-[var(--error)]">{error}</p> : null}
+        {message ? <p className="rounded-lg bg-[var(--tertiary-fixed)]/30 p-3 text-sm font-semibold text-[var(--tertiary)]">{message}</p> : null}
 
-          {!profile ? <DetailLoading /> : null}
-
-          {profile && status === "REJECTED" ? <RejectedReason reason={profile.rejectionReason || reason || "Bằng cấp không hợp lệ hoặc tài liệu xác minh chưa rõ nét."} /> : null}
-
-          {profile ? <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
-            <div className="flex flex-col gap-6">
-              <PersonalInfoCard profile={profile} />
-              <TeachingProfileCard profile={profile} />
-              <DocumentsReviewCard profile={profile} status={status} />
-            </div>
-            <aside className="flex flex-col gap-6">
-              <SummaryCard status={status} />
-              <TimelineCard status={status} />
-              <InternalNotes />
-            </aside>
-          </div> : null}
-        </main>
-      </div>
-
-      {approveOpen ? <ApproveModal onCancel={() => setApproveOpen(false)} onConfirm={approve} tutorName={profile?.fullName ?? "gia sư"} /> : null}
-      {rejectOpen ? (
-        <RejectModal
-          onCancel={() => setRejectOpen(false)}
-          onConfirm={reject}
-          reason={reason}
-          setReason={setReason}
-          tutorName={profile?.fullName ?? "gia sư"}
-        />
-      ) : null}
-    </DashboardShell>
-  );
-}
-
-function PersonalInfoCard({ profile }: { profile: TutorProfile }) {
-  const items = [
-    ["Họ và tên", profile.fullName],
-    ["Email", profile.email],
-    ["Số điện thoại", profile.phone ?? "Chưa cập nhật"],
-    ["Địa chỉ hiện tại", [profile.locationDistrict, profile.locationCity].filter(Boolean).join(", ") || "Chưa cập nhật"],
-  ];
-  const initial = profile.fullName.trim().charAt(0).toUpperCase() || "G";
-
-  return (
-    <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
-      <h2 className="mb-5 flex items-center gap-2 border-b border-[var(--outline-variant)]/50 pb-3 text-xl font-semibold">
-        <Icon name="person" className="text-[var(--primary)]" />
-        Thông tin cá nhân
-      </h2>
-      <div className="flex flex-col gap-6 md:flex-row">
-        <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-highest)] text-5xl font-bold text-[var(--primary)]">
-          {profile.avatarUrl ? <img alt={profile.fullName} className="h-full w-full object-cover" src={profile.avatarUrl} /> : initial}
-        </div>
-        <dl className="grid flex-1 grid-cols-1 gap-5 sm:grid-cols-2">
-          {items.map(([label, value], index) => (
-            <div className={index === items.length - 1 ? "sm:col-span-2" : ""} key={label}>
-              <dt className="mb-1 text-xs font-bold uppercase text-[var(--outline)]">{label}</dt>
-              <dd className="text-sm font-semibold text-[var(--on-surface)]">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-    </section>
-  );
-}
-
-function DetailLoading() {
-  return (
-    <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-8 text-sm font-semibold text-[var(--on-surface-variant)] shadow-sm">
-      Đang tải dữ liệu hồ sơ từ database...
-    </section>
-  );
-}
-
-function TeachingProfileCard({ profile }: { profile: TutorProfile }) {
-  const subjectLabels = profile.subjects.length
-    ? profile.subjects.map((item) => `${item.subject.name} - ${levelLabel(item.level)}`)
-    : ["Chưa cập nhật môn học"];
-
-  return (
-    <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
-      <h2 className="mb-5 flex items-center gap-2 border-b border-[var(--outline-variant)]/50 pb-3 text-xl font-semibold">
-        <Icon name="work" className="text-[var(--primary)]" />
-        Hồ sơ giảng dạy
-      </h2>
-      <div className="space-y-5">
-        <div>
-          <p className="mb-1 text-xs font-bold uppercase text-[var(--outline)]">Tiêu đề hồ sơ</p>
-          <p className="text-lg font-bold">{profile.headline ?? "Chưa cập nhật tiêu đề hồ sơ"}</p>
-        </div>
-        <div>
-          <p className="mb-2 text-xs font-bold uppercase text-[var(--outline)]">Giới thiệu bản thân</p>
-          <p className="rounded-lg border border-[var(--outline-variant)]/40 bg-[var(--surface-container)] px-4 py-3 text-sm leading-7 text-[var(--on-surface-variant)]">
-            {profile.bio ?? "Gia sư chưa cập nhật phần giới thiệu bản thân."}
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Metric icon="history" label="Kinh nghiệm" value={`${profile.experienceYears ?? 0} năm`} />
-          <Metric icon="payments" label="Mức học phí" value={profile.hourlyRate ? `${formatCurrency(profile.hourlyRate)}/h` : "Chưa cập nhật"} />
-          <Metric icon="location_on" label="Hình thức" value={teachingModeLabel(profile.teachingMode)} />
-        </div>
-        <div>
-          <p className="mb-2 text-xs font-bold uppercase text-[var(--outline)]">Môn học đăng ký</p>
-          <div className="flex flex-wrap gap-2">
-            {subjectLabels.map((subject) => (
-              <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-high)] px-3 py-1 text-sm font-semibold" key={subject}>
-                {subject}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DocumentsReviewCard({ profile, status }: { profile: TutorProfile; status: TutorVerificationStatus }) {
-  const rejected = status === "REJECTED";
-  const documents = profile.documents.length
-    ? profile.documents.map((document) => ({
-        icon: documentIcon(document.type),
-        id: document.id,
-        title: documentLabel(document.type),
-        file: document.fileName,
-        filePath: document.filePath,
-        note: document.rejectionReason ?? documentStatusLabel(document.status),
-        rejected: document.status === "REJECTED",
-      }))
-    : [];
-
-  return (
-    <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
-      <h2 className="mb-5 flex items-center gap-2 border-b border-[var(--outline-variant)]/50 pb-3 text-xl font-semibold">
-        <Icon name="folder_open" className="text-[var(--primary)]" />
-        Tài liệu xác minh
-      </h2>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {documents.length ? documents.map((document) => {
-          const isRejected = rejected || document.rejected;
-          return (
-            <div className={["rounded-lg border p-4", isRejected ? "border-[var(--error)] bg-[var(--error-container)]/30" : "border-[var(--outline-variant)] bg-[var(--surface)]"].join(" ")} key={document.id}>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Icon name={document.icon} className={isRejected ? "text-[var(--error)]" : "text-[var(--primary)]"} />
-                  <span className="text-sm font-bold">{document.title}</span>
+        {!profile ? (
+          <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-8 text-sm text-[var(--on-surface-variant)]">Đang tải hồ sơ...</section>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <section className="space-y-6 lg:col-span-2">
+              <Card title="Thông tin cá nhân" icon="person">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Info label="Họ tên" value={profile.fullName} />
+                  <Info label="Email" value={profile.email} />
+                  <Info label="Số điện thoại" value={profile.phone || "-"} />
+                  <Info label="Khu vực" value={[profile.locationDistrict, profile.locationCity].filter(Boolean).join(", ") || "-"} />
                 </div>
-                <span className={["rounded px-2 py-0.5 text-[10px] font-bold uppercase", isRejected ? "bg-[var(--error)] text-white" : "bg-[#006444]/10 text-[#004a31]"].join(" ")}>
-                  {isRejected ? "Cần kiểm tra" : "Đã tải lên"}
-                </span>
-              </div>
-              <div className="mb-3 flex h-28 items-center justify-center rounded border border-[var(--outline-variant)] bg-white text-[var(--outline)]">
-                <Icon name={document.file.endsWith(".pdf") ? "picture_as_pdf" : "image"} className="text-[40px]" />
-              </div>
-              <p className="truncate text-sm font-semibold">{document.file}</p>
-              <p className={["mt-1 text-xs", isRejected ? "text-[var(--error)]" : "text-[var(--on-surface-variant)]"].join(" ")}>{document.note}</p>
-              <a className="mt-3 inline-flex items-center gap-1 rounded border border-[var(--primary)]/30 px-3 py-1.5 text-xs font-bold text-[var(--primary)] hover:bg-[var(--primary)]/5" href={document.filePath} rel="noreferrer" target="_blank">
-                <Icon name="visibility" className="text-[16px]" />
-                Xem tài liệu
-              </a>
-            </div>
-          );
-        }) : (
-          <p className="col-span-full rounded-lg border border-dashed border-[var(--outline-variant)] bg-[var(--surface)] p-4 text-sm text-[var(--on-surface-variant)]">
-            Gia sư chưa tải tài liệu xác minh.
-          </p>
+              </Card>
+
+              <Card title="Hồ sơ giảng dạy" icon="school">
+                <div className="space-y-4">
+                  <Info label="Tiêu đề" value={profile.headline || "-"} />
+                  <Info label="Giới thiệu" value={profile.bio || "-"} />
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <Info label="Kinh nghiệm" value={`${profile.experienceYears || 0} năm`} />
+                    <Info label="Học phí" value={money(profile.hourlyRate)} />
+                    <Info label="Hình thức" value={profile.teachingMode} />
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs font-bold uppercase text-[var(--on-surface-variant)]">Môn học</p>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.subjects.length ? profile.subjects.map((item) => (
+                        <span className="rounded-full bg-[var(--surface-container-high)] px-3 py-1 text-sm font-bold" key={item.id}>{item.subject.name} · {item.level}</span>
+                      )) : <span className="text-sm text-[var(--on-surface-variant)]">Chưa có môn học</span>}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="Tài liệu xác minh" icon="description">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {profile.documents.length ? profile.documents.map((document) => (
+                    <article className="rounded-lg border border-[var(--outline-variant)] p-4" key={document.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-bold">{document.type}</p>
+                          <p className="mt-1 text-xs text-[var(--on-surface-variant)]">{document.fileName}</p>
+                        </div>
+                        <span className="rounded-full bg-[var(--surface-container-high)] px-2 py-1 text-xs font-bold">{document.status}</span>
+                      </div>
+                      <a className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)]" href={document.filePath} rel="noreferrer" target="_blank">
+                        <Icon name="visibility" />
+                        Xem file
+                      </a>
+                    </article>
+                  )) : <p className="text-sm text-[var(--on-surface-variant)]">Chưa có tài liệu.</p>}
+                </div>
+              </Card>
+            </section>
+
+            <aside className="space-y-6">
+              <Card title="Quyết định duyệt" icon="rule">
+                <div className="space-y-4">
+                  <p className="text-sm text-[var(--on-surface-variant)]">Duyệt hồ sơ sẽ công khai gia sư trên trang tìm kiếm. Từ chối sẽ lưu lý do để gia sư chỉnh sửa.</p>
+                  <button className="w-full rounded-lg bg-[var(--primary)] px-4 py-3 text-sm font-bold text-white disabled:opacity-60" disabled={busy || status === "APPROVED"} onClick={handleApprove} type="button">
+                    Duyệt hồ sơ
+                  </button>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-[var(--on-surface-variant)]">Lý do từ chối</span>
+                    <textarea className="min-h-28 w-full rounded-lg border border-[var(--outline-variant)] p-3 text-sm outline-none focus:border-[var(--primary)]" onChange={(event) => setReason(event.target.value)} value={reason} />
+                  </label>
+                  <button className="w-full rounded-lg border border-[var(--error)] px-4 py-3 text-sm font-bold text-[var(--error)] disabled:opacity-60" disabled={busy || !reason.trim()} onClick={handleReject} type="button">
+                    Từ chối hồ sơ
+                  </button>
+                </div>
+              </Card>
+
+              <Card title="Tóm tắt" icon="analytics">
+                <div className="space-y-3 text-sm">
+                  <Info label="Trạng thái" value={statusLabels[status]} />
+                  <Info label="Số môn" value={String(profile.subjects.length)} />
+                  <Info label="Số tài liệu" value={String(profile.documents.length)} />
+                </div>
+              </Card>
+            </aside>
+          </div>
         )}
-      </div>
-    </section>
+      </main>
+    </AdminLayout>
   );
 }
 
-function SummaryCard({ status }: { status: TutorVerificationStatus }) {
-  const approved = status === "APPROVED";
-  const rejected = status === "REJECTED";
-
-  return (
-    <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
-      <div className="mb-4 flex items-center gap-3 border-b border-[var(--outline-variant)]/50 pb-4">
-        <div className={["flex h-12 w-12 items-center justify-center rounded-full text-white", approved ? "bg-[var(--tertiary-container)]" : rejected ? "bg-[var(--error)]" : "bg-[var(--secondary)]"].join(" ")}>
-          <Icon name={approved ? "verified" : rejected ? "cancel" : "pending"} fill />
-        </div>
-        <div>
-          <h3 className="text-xl font-semibold">{statusLabels[status]}</h3>
-          <p className="text-sm text-[var(--on-surface-variant)]">
-            {approved ? "Hồ sơ đủ điều kiện" : rejected ? "Cần chỉnh sửa" : "Đang cần admin xử lý"}
-          </p>
-        </div>
-      </div>
-      <p className="text-sm leading-6 text-[var(--on-surface-variant)]">
-        {approved
-          ? "Ứng viên có tài liệu xác minh đầy đủ và phù hợp để bắt đầu nhận lớp."
-          : rejected
-            ? "Ứng viên cần bổ sung tài liệu rõ nét hơn trước khi được xét duyệt lại."
-            : "Kiểm tra thông tin cá nhân, hồ sơ giảng dạy và tài liệu xác minh trước khi ra quyết định."}
-      </p>
-    </section>
-  );
+function Card({ children, icon, title }: { children: React.ReactNode; icon: string; title: string }) {
+  return <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-5 shadow-sm"><h2 className="mb-4 flex items-center gap-2 text-lg font-black"><Icon className="text-[var(--primary)]" name={icon} />{title}</h2>{children}</section>;
 }
 
-function TimelineCard({ status }: { status: TutorVerificationStatus }) {
-  const events = [
-    status === "APPROVED"
-      ? ["Đã phê duyệt hồ sơ", "Bởi Admin User", "Hôm nay, 14:30", "bg-[var(--tertiary-container)]"]
-      : status === "REJECTED"
-        ? ["Từ chối hồ sơ", "Bởi Admin User", "Hôm nay, 14:30", "bg-[var(--error)]"]
-        : ["Hồ sơ được phân công", "Cho Admin User xét duyệt", "Hôm nay, 10:30", "bg-[var(--secondary-container)]"],
-    ["Ứng viên cập nhật tài liệu", "CCCD và bằng cấp", "Hôm qua, 15:45", "bg-[var(--outline-variant)]"],
-    ["Hồ sơ đăng ký mới", "Hệ thống ghi nhận", "2 ngày trước, 09:00", "bg-[var(--outline-variant)]"],
-  ];
-
-  return (
-    <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
-      <h3 className="mb-4 flex items-center gap-2 text-xl font-semibold">
-        <Icon name="history" />
-        Lịch sử xét duyệt
-      </h3>
-      <div className="relative ml-2 space-y-5 border-l-2 border-[var(--surface-variant)] pl-5">
-        {events.map(([title, detail, time, color]) => (
-          <div className="relative" key={title}>
-            <span className={`absolute -left-[31px] top-1 h-4 w-4 rounded-full border-2 border-white ${color}`} />
-            <p className="text-xs font-semibold text-[var(--outline)]">{time}</p>
-            <p className="mt-1 text-sm font-bold">{title}</p>
-            <p className="text-sm text-[var(--on-surface-variant)]">{detail}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+function Info({ label, value }: { label: string; value: string }) {
+  return <div><p className="text-xs font-bold uppercase text-[var(--on-surface-variant)]">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div>;
 }
 
-function InternalNotes() {
-  return (
-    <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
-      <h3 className="mb-3 flex items-center gap-2 text-xl font-semibold">
-        <Icon name="edit_note" />
-        Ghi chú nội bộ
-      </h3>
-      <textarea
-        className="h-32 w-full resize-none rounded-lg border border-[var(--outline-variant)] bg-[var(--surface)] p-3 text-sm outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
-        placeholder="Nhập ghi chú về hồ sơ này..."
-      />
-      <button className="mt-3 w-full rounded-lg border border-[var(--outline-variant)] py-2 text-sm font-bold text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" type="button">
-        Lưu ghi chú
-      </button>
-    </section>
-  );
-}
-
-function ApproveModal({ onCancel, onConfirm, tutorName }: { onCancel: () => void; onConfirm: () => void; tutorName: string }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <section className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary-fixed)] text-[var(--primary)]">
-          <Icon name="task_alt" />
-        </div>
-        <h2 className="text-center text-xl font-bold">Xác nhận duyệt hồ sơ?</h2>
-        <p className="mt-3 text-center text-sm leading-6 text-[var(--on-surface-variant)]">
-          Sau khi duyệt, hồ sơ của {tutorName} sẽ được hiển thị công khai và có thể bắt đầu nhận lịch hẹn.
-        </p>
-        <div className="mt-6 flex gap-3">
-          <button className="flex-1 rounded-lg border border-[var(--primary)] py-2.5 text-sm font-bold text-[var(--primary)]" onClick={onCancel} type="button">
-            Hủy
-          </button>
-          <button className="flex-1 rounded-lg bg-[var(--primary)] py-2.5 text-sm font-bold text-white" onClick={onConfirm} type="button">
-            Đồng ý duyệt
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function RejectModal({
-  onCancel,
-  onConfirm,
-  reason,
-  setReason,
-  tutorName,
-}: {
-  onCancel: () => void;
-  onConfirm: () => void;
-  reason: string;
-  setReason: (value: string) => void;
-  tutorName: string;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <section className="w-full max-w-[480px] overflow-hidden rounded-xl bg-white shadow-2xl">
-        <header className="flex items-center justify-between border-b border-[var(--outline-variant)] bg-[var(--error-container)]/40 px-6 py-5">
-          <div className="flex items-center gap-2 text-[var(--error)]">
-            <Icon name="warning" fill />
-            <h2 className="text-xl font-bold">Từ chối hồ sơ</h2>
-          </div>
-          <button className="text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]" onClick={onCancel} type="button">
-            <Icon name="close" />
-          </button>
-        </header>
-        <div className="space-y-4 p-6">
-          <p className="text-sm leading-6 text-[var(--on-surface-variant)]">
-            Bạn đang từ chối hồ sơ của <strong className="text-[var(--on-surface)]">{tutorName}</strong>. Vui lòng cung cấp lý do chi tiết để gia sư có thể khắc phục.
-          </p>
-          <label className="block">
-            <span className="mb-2 block text-sm font-bold">
-              Lý do từ chối <span className="text-[var(--error)]">*</span>
-            </span>
-            <textarea
-              className="h-32 w-full resize-none rounded-lg border border-[var(--outline-variant)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Nhập lý do từ chối hồ sơ tại đây..."
-              value={reason}
-            />
-          </label>
-        </div>
-        <footer className="flex justify-end gap-3 border-t border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-6 py-4">
-          <button className="rounded-lg border border-[var(--primary)] px-5 py-2.5 text-sm font-bold text-[var(--primary)]" onClick={onCancel} type="button">
-            Hủy bỏ
-          </button>
-          <button
-            className="rounded-lg bg-[var(--error)] px-5 py-2.5 text-sm font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!reason.trim()}
-            onClick={onConfirm}
-            type="button"
-          >
-            Xác nhận từ chối
-          </button>
-        </footer>
-      </section>
-    </div>
-  );
-}
-
-function RejectedReason({ reason }: { reason: string }) {
-  return (
-    <section className="flex items-start gap-4 rounded-xl border border-[var(--error-container)] bg-[var(--error-container)]/30 p-5">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--error)] text-white">
-        <Icon name="warning" />
-      </div>
-      <div>
-        <h3 className="text-lg font-bold text-[var(--on-error-container)]">Lý do từ chối</h3>
-        <p className="mt-1 text-sm leading-6 text-[var(--on-surface-variant)]">{reason}</p>
-        <p className="mt-2 text-xs text-[var(--on-surface-variant)]">Người duyệt: Admin User - Hôm nay, 14:30</p>
-      </div>
-    </section>
-  );
-}
-
-function Metric({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-[var(--outline-variant)]/50 bg-[var(--surface)] p-4 text-center">
-      <Icon name={icon} className="mx-auto mb-1 text-[32px] text-[var(--primary)]" />
-      <p className="text-xs font-semibold text-[var(--outline)]">{label}</p>
-      <p className="text-base font-bold">{value}</p>
-    </div>
-  );
-}
-
-function StatusPill({ status }: { status: TutorVerificationStatus }) {
-  const className =
-    status === "PENDING_REVIEW"
-      ? "bg-[#fea619]/20 text-[#684000]"
-      : status === "APPROVED"
-        ? "bg-[#006444]/10 text-[#004a31]"
-        : status === "REJECTED"
-          ? "bg-[#ffdad6] text-[#93000a]"
-          : "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]";
-
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${className}`}>
-      <Icon name={status === "APPROVED" ? "check_circle" : status === "REJECTED" ? "cancel" : "pending"} fill className="text-[16px]" />
-      {statusLabels[status]}
-    </span>
-  );
-}
-
-function levelLabel(level: string) {
-  const labels: Record<string, string> = {
-    PRIMARY: "Tiểu học",
-    LOWER_SECONDARY: "Cấp 2",
-    HIGH_SCHOOL: "Cấp 3",
-    UNIVERSITY: "Đại học",
-    BASIC: "Cơ bản",
-    INTERMEDIATE: "Trung cấp",
-    ADVANCED: "Nâng cao",
-    EXAM_PREP: "Luyện thi",
-  };
-
-  return labels[level] ?? level;
-}
-
-function teachingModeLabel(mode: string | null) {
-  if (mode === "ONLINE") return "Online";
-  if (mode === "OFFLINE") return "Trực tiếp";
-  if (mode === "BOTH") return "Online & Offline";
-  return "Chưa cập nhật";
-}
-
-function formatCurrency(value: string) {
-  const amount = Number(value);
-  if (!amount) return value;
-  return new Intl.NumberFormat("vi-VN").format(amount);
-}
-
-function documentLabel(type: string) {
-  const labels: Record<string, string> = {
-    NATIONAL_ID_FRONT: "CCCD mặt trước",
-    NATIONAL_ID_BACK: "CCCD mặt sau",
-    DEGREE: "Bằng cấp / Thẻ sinh viên",
-    CERTIFICATE: "Chứng chỉ",
-    BACKGROUND_CHECK: "Xác minh lý lịch",
-    OTHER: "Tài liệu khác",
-  };
-
-  return labels[type] ?? type;
-}
-
-function documentIcon(type: string) {
-  const icons: Record<string, string> = {
-    NATIONAL_ID_FRONT: "badge",
-    NATIONAL_ID_BACK: "badge",
-    DEGREE: "history_edu",
-    CERTIFICATE: "workspace_premium",
-    BACKGROUND_CHECK: "verified_user",
-    OTHER: "description",
-  };
-
-  return icons[type] ?? "description";
-}
-
-function documentStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    PENDING: "Đang chờ kiểm tra",
-    APPROVED: "Đã duyệt",
-    REJECTED: "Bị từ chối",
-  };
-
-  return labels[status] ?? status;
+function Status({ status }: { status: TutorVerificationStatus }) {
+  const color = status === "APPROVED" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "REJECTED" ? "text-[var(--error)] bg-[var(--error-container)]" : "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40";
+  return <span className={`w-fit rounded-full px-4 py-2 text-sm font-bold ${color}`}>{statusLabels[status]}</span>;
 }

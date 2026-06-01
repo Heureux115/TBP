@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export type PublicUser = {
   id: string;
@@ -83,6 +83,20 @@ export function resendVerification(payload: { email: string }) {
 
 export function login(payload: { email: string; password: string }) {
   return request<AuthResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function forgotPassword(payload: { email: string }) {
+  return request<{ message: string }>("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function resetPassword(payload: { email: string; token: string; password: string }) {
+  return request<{ message: string }>("/auth/reset-password", {
     method: "POST",
     body: JSON.stringify(payload),
   });

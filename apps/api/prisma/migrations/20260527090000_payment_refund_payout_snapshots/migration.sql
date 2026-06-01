@@ -1,0 +1,25 @@
+DO $$
+BEGIN
+  ALTER TYPE "PaymentStatus" ADD VALUE 'REFUNDED';
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE "PayoutStatus" AS ENUM ('HELD', 'RELEASED', 'CANCELLED', 'REFUNDED');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+ALTER TABLE "bookings"
+  ADD COLUMN IF NOT EXISTS "hourly_rate_snapshot" DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "gross_amount_snapshot" DECIMAL(12, 2) NOT NULL DEFAULT 0;
+
+ALTER TABLE "payments"
+  ADD COLUMN IF NOT EXISTS "platform_fee_amount" DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "tutor_payout_amount" DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "payout_status" "PayoutStatus" NOT NULL DEFAULT 'HELD',
+  ADD COLUMN IF NOT EXISTS "refunded_at" TIMESTAMPTZ(6),
+  ADD COLUMN IF NOT EXISTS "refund_reason" TEXT,
+  ADD COLUMN IF NOT EXISTS "revenue_released_at" TIMESTAMPTZ(6);

@@ -52,19 +52,19 @@ export function LandingHeader() {
             className="rounded-lg px-3 py-2 text-sm font-semibold text-[#414750] transition hover:bg-[#dee8ff] hover:text-[#004271]"
             href="/tutors"
           >
-            Find Tutors
+            Tìm gia sư
           </Link>
           <a
             className="rounded-lg px-3 py-2 text-sm font-semibold text-[#414750] transition hover:bg-[#dee8ff] hover:text-[#004271]"
             href="#how-it-works"
           >
-            How it Works
+            Cách hoạt động
           </a>
           <a
             className="rounded-lg px-3 py-2 text-sm font-semibold text-[#414750] transition hover:bg-[#dee8ff] hover:text-[#004271]"
             href="#resources"
           >
-            Resources
+            Tài nguyên
           </a>
         </nav>
 
@@ -72,18 +72,18 @@ export function LandingHeader() {
           {sessionState === "user" && user ? (
             <>
               <button
-                aria-label="Notifications"
+                aria-label="Thông báo"
                 className="hidden h-10 w-10 items-center justify-center rounded-full text-[#414750] transition hover:bg-[#dee8ff] hover:text-[#004271] md:inline-flex"
                 type="button"
               >
-                <span aria-hidden="true">🔔</span>
+                <span className="material-symbols-outlined" aria-hidden="true">notifications</span>
               </button>
               <button
-                aria-label="Messages"
+                aria-label="Tin nhắn"
                 className="hidden h-10 w-10 items-center justify-center rounded-full text-[#414750] transition hover:bg-[#dee8ff] hover:text-[#004271] md:inline-flex"
                 type="button"
               >
-                <span aria-hidden="true">💬</span>
+                <span className="material-symbols-outlined" aria-hidden="true">chat</span>
               </button>
               <Link
                 className="flex items-center gap-2 rounded-full border border-[#c1c7d1] bg-white p-1 pr-3 transition hover:bg-[#f0f3ff]"
@@ -107,13 +107,13 @@ export function LandingHeader() {
                 className="hidden rounded-lg px-4 py-2 text-sm font-semibold text-[#004271] transition hover:bg-[#dee8ff] md:inline-flex"
                 href="/auth/login"
               >
-                Sign In
+                Đăng nhập
               </Link>
               <Link
                 className="rounded-lg bg-[#004271] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d5a94]"
                 href="/register"
               >
-                Join as Tutor
+                Đăng ký làm gia sư
               </Link>
             </>
           )}
@@ -122,4 +122,3 @@ export function LandingHeader() {
     </header>
   );
 }
-

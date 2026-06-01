@@ -8,8 +8,8 @@ import { resendVerification, verifyEmail } from "@/lib/api";
 function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get("email") ?? "";
-  const next = searchParams.get("next") ?? "/dashboard";
+  const email = searchParams.get("email") || "";
+  const next = searchParams.get("next") || "/dashboard";
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -87,10 +87,10 @@ function VerifyEmailContent() {
           </Link>
           <div className="flex items-center gap-3">
             <Link className="rounded-lg px-4 py-2 text-sm font-semibold text-[#004271] hover:bg-[#dee8ff]" href="/auth/login">
-              Sign In
+              Đăng nhập
             </Link>
             <Link className="rounded-lg bg-[#004271] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0d5a94]" href="/register">
-              Join as Tutor
+              Đăng ký làm gia sư
             </Link>
           </div>
         </div>
@@ -99,12 +99,12 @@ function VerifyEmailContent() {
       <section className="flex flex-1 items-center justify-center px-5 pt-28 pb-12">
         <div className="flex w-full max-w-[480px] flex-col items-center rounded-xl border border-[#c1c7d1] bg-white p-8 text-center shadow-[0_4px_12px_rgba(30,41,59,0.05)]">
           <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#e7eeff] text-4xl text-[#004271]">
-            ✉
+            <span className="material-symbols-outlined">mail</span>
           </div>
-          <h1 className="mb-1 text-3xl font-bold text-[#111c2d]">Verify your email</h1>
+          <h1 className="mb-1 text-3xl font-bold text-[#111c2d]">Xác thực email</h1>
           <p className="mb-8 text-base leading-7 text-[#414750]">
-            We&apos;ve sent a 6-digit verification code to <br />
-            <strong className="font-semibold text-[#111c2d]">{email || "your email"}</strong>.
+            Chúng tôi đã gửi mã xác thực 6 chữ số tới <br />
+            <strong className="font-semibold text-[#111c2d]">{email || "email của bạn"}</strong>.
           </p>
 
           <form className="w-full" onSubmit={handleVerify}>
@@ -138,19 +138,19 @@ function VerifyEmailContent() {
               disabled={isSubmitting || code.length !== 6 || !email}
               type="submit"
             >
-              Verify Code
+              Xác thực mã
             </button>
           </form>
 
           <p className="text-sm text-[#414750]">
-            Didn&apos;t receive the code?{" "}
+            Chưa nhận được mã?{" "}
             <button
               className="font-semibold text-[#004271] hover:underline disabled:opacity-60"
               disabled={isSubmitting || !email}
               onClick={handleResend}
               type="button"
             >
-              Resend code
+              Gửi lại mã
             </button>
           </p>
 

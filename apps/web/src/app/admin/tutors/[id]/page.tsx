@@ -21,7 +21,7 @@ export default async function AdminTutorDetailPage({
 
   return (
     <AdminTutorDetailScreen
-      initialStatus={initialStatus ?? "PENDING_REVIEW"}
+      initialStatus={initialStatus || "PENDING_REVIEW"}
       tutorId={routeParams.id}
     />
   );

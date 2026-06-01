@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -19,6 +21,11 @@ import { TutorsService } from './tutors.service';
 import { CreateTutorDocumentDto } from './dto/create-tutor-document.dto';
 import { UploadUrlDto } from './dto/upload-url.dto';
 import { UpsertTutorProfileDto } from './dto/upsert-tutor-profile.dto';
+import {
+  CreateAvailabilitySlotDto,
+  DeleteAvailabilitySlotDto,
+  MyTutorAvailabilityQueryDto,
+} from './dto/tutor-availability.dto';
 
 type AuthenticatedRequest = Request & {
   user: AuthenticatedUser;
@@ -60,6 +67,30 @@ export class TutorsController {
   @Post('me/submit-verification')
   submitVerification(@Req() request: AuthenticatedRequest) {
     return this.tutorsService.submitMyVerification(request.user);
+  }
+
+  @Get('me/availability')
+  getMyAvailability(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: MyTutorAvailabilityQueryDto,
+  ) {
+    return this.tutorsService.getMyAvailability(request.user, query.weekStart);
+  }
+
+  @Post('me/availability')
+  createAvailabilitySlot(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateAvailabilitySlotDto,
+  ) {
+    return this.tutorsService.createAvailabilitySlot(request.user, dto);
+  }
+
+  @Delete('me/availability')
+  deleteAvailabilitySlot(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: DeleteAvailabilitySlotDto,
+  ) {
+    return this.tutorsService.deleteAvailabilitySlot(request.user, dto.id);
   }
 
   @Get('me/documents')

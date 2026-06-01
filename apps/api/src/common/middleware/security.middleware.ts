@@ -13,7 +13,19 @@ export function securityMiddleware(
   response.setHeader('x-content-type-options', 'nosniff');
   response.setHeader('x-frame-options', 'DENY');
   response.setHeader('referrer-policy', 'no-referrer');
-  response.setHeader('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+  response.setHeader(
+    'permissions-policy',
+    'camera=(), microphone=(), geolocation=()',
+  );
+
+  const startedAt = Date.now();
+  response.on('finish', () => {
+    const durationMs = Date.now() - startedAt;
+    const method = request.method;
+    const url = request.originalUrl;
+    const statusCode = response.statusCode;
+    console.log(`${requestId} ${method} ${url} ${statusCode} ${durationMs}ms`);
+  });
 
   next();
 }
