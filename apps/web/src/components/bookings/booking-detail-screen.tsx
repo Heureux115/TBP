@@ -8,6 +8,7 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { Booking, BookingStatus, cancelBooking, completeBooking, confirmBooking, getBooking } from "@/lib/booking-api";
 import { ensureConversation, getMessages, Message } from "@/lib/message-api";
 import { createPayment, getMyPayments, mockConfirmPayment, Payment } from "@/lib/payment-api";
+import { createDispute } from "@/lib/dispute-api";
 import { useHasMounted } from "@/lib/use-has-mounted";
 
 const statusLabels: Record<BookingStatus, string> = {
@@ -79,6 +80,7 @@ export function BookingDetailScreen({ id }: { id: string }) {
   const [payment, setPayment] = useState<Payment | Booking["payment"]>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -199,6 +201,24 @@ export function BookingDetailScreen({ id }: { id: string }) {
     }
   }
 
+  async function handleOpenDispute() {
+    const token = getAccessToken();
+    if (!token || !booking) return;
+    const reason = window.prompt("Lý do khiếu nại/dispute:", "Tôi cần admin hỗ trợ kiểm tra buổi học này.");
+    if (!reason) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await createDispute(token, booking.id, reason);
+      setNotice("Dispute đã được gửi tới admin để xử lý.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không thể tạo dispute.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!hasMounted) return <DetailSkeleton />;
 
   if (error) {
@@ -221,6 +241,7 @@ export function BookingDetailScreen({ id }: { id: string }) {
   const canCancel = booking.status !== "CANCELLED" && booking.status !== "COMPLETED";
   const canConfirm = role === "TUTOR" && booking.status === "PENDING";
   const canPay = role === "STUDENT" && booking.status === "CONFIRMED" && (!payment || payment.status === "PENDING");
+  const canOpenDispute = role === "STUDENT" && paid && booking.status !== "CANCELLED" && booking.status !== "COMPLETED";
   const canComplete = role === "TUTOR" && paid && booking.status === "CONFIRMED" && new Date(booking.startsAt) <= new Date();
   const showCompleteAction = role === "TUTOR" && (booking.status === "CONFIRMED" || booking.status === "COMPLETED");
   const completeReason = getCompleteUnavailableReason(booking, paid);
@@ -262,8 +283,17 @@ export function BookingDetailScreen({ id }: { id: string }) {
               <Icon fill name="video_call" /> Vào lớp trực tuyến
             </button>
             <button className="rounded-lg border border-[var(--primary)] px-5 py-3 text-sm font-bold text-[var(--primary)]" type="button" onClick={openChat} disabled={busy}>Nhắn tin</button>
+            {canOpenDispute ? (
+              <button className="rounded-lg border border-[var(--error)]/30 px-5 py-3 text-sm font-bold text-[var(--error)] disabled:opacity-60" type="button" onClick={handleOpenDispute} disabled={busy}>Mở dispute</button>
+            ) : null}
           </div>
         </section>
+
+        {notice ? (
+          <p className="mb-6 rounded-lg border border-[var(--tertiary)]/20 bg-[var(--tertiary)]/10 p-3 text-sm font-bold text-[var(--tertiary)]">
+            {notice}
+          </p>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <section className="flex flex-col gap-6 lg:col-span-8">

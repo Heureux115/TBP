@@ -1,3 +1,5 @@
+import { applyAuthHeaders } from "./auth-storage";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export type TutorVerificationStatus = "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
@@ -117,14 +119,6 @@ export type UpsertTutorProfilePayload = {
   subjects?: TutorSubjectInput[];
 };
 
-export type CreateTutorDocumentPayload = {
-  type: TutorDocumentType;
-  fileName: string;
-  filePath: string;
-  mimeType: string;
-  fileSizeBytes: number;
-};
-
 export type UploadUrlPayload = {
   type: TutorDocumentType;
   fileName: string;
@@ -134,11 +128,12 @@ export type UploadUrlPayload = {
 async function request<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  headers.set("Authorization", `Bearer ${token}`);
+  await applyAuthHeaders(headers, token, options.method || "GET");
 
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    credentials: "include",
   });
   const body = await response.json().catch(() => null);
 
@@ -195,13 +190,6 @@ export function deleteTutorAvailabilitySlot(token: string, id: string) {
   });
 }
 
-export function createTutorDocument(token: string, payload: CreateTutorDocumentPayload) {
-  return request<TutorDocument>("/tutors/documents", token, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
 export function createTutorDocumentUploadUrl(token: string, payload: UploadUrlPayload) {
   return request<{ uploadUrl: string; filePath: string; expiresIn: number }>(
     "/tutors/documents/upload-url",
@@ -214,12 +202,14 @@ export function createTutorDocumentUploadUrl(token: string, payload: UploadUrlPa
 }
 
 async function uploadForm<T>(path: string, token: string, formData: FormData): Promise<T> {
+  const headers = new Headers();
+  await applyAuthHeaders(headers, token, "POST");
+
   const response = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
     body: formData,
+    credentials: "include",
   });
   const body = await response.json().catch(() => null);
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 import { BadRequestException } from '@nestjs/common';
 import {
   BookingStatus,
@@ -32,6 +33,7 @@ function createPayment(overrides: Partial<any> = {}) {
     },
     tutorProfile: {
       id: 'tutor-profile-1',
+      userId: 'tutor-user-1',
       headline: 'Math',
       user: {
         id: 'tutor-user-1',
@@ -96,6 +98,7 @@ function createWithdrawal(overrides: Partial<any> = {}) {
     },
     tutorProfile: {
       id: 'tutor-profile-1',
+      userId: 'tutor-user-1',
       user: {
         id: 'tutor-user-1',
         fullName: 'Tutor',
@@ -129,11 +132,18 @@ describe('AdminOperationsService', () => {
       booking: { update: jest.fn() },
       availabilitySlot: { update: jest.fn() },
       tutorWallet: { findUnique: jest.fn(), update: jest.fn() },
+      adminAuditLog: { create: jest.fn() },
       $transaction: jest.fn((callback) => callback(prisma)),
     };
-    const service = new AdminOperationsService(prisma as any);
+    const service = new AdminOperationsService(prisma, {
+      create: jest.fn(),
+    } as any);
 
-    const result = await service.refundPayment(admin, payment.id, 'student dispute');
+    const result = await service.refundPayment(
+      admin,
+      payment.id,
+      'student dispute',
+    );
 
     expect(prisma.payment.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -169,9 +179,12 @@ describe('AdminOperationsService', () => {
         }),
       },
       tutorWallet: { update: jest.fn() },
+      adminAuditLog: { create: jest.fn() },
       $transaction: jest.fn((callback) => callback(prisma)),
     };
-    const service = new AdminOperationsService(prisma as any);
+    const service = new AdminOperationsService(prisma, {
+      create: jest.fn(),
+    } as any);
 
     const result = await service.rejectWithdrawal(
       admin,
@@ -202,10 +215,12 @@ describe('AdminOperationsService', () => {
       },
       $transaction: jest.fn((callback) => callback(prisma)),
     };
-    const service = new AdminOperationsService(prisma as any);
+    const service = new AdminOperationsService(prisma, {
+      create: jest.fn(),
+    } as any);
 
-    await expect(service.refundPayment(admin, payment.id, 'late dispute')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.refundPayment(admin, payment.id, 'late dispute'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

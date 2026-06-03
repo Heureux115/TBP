@@ -1,5 +1,8 @@
 import { Prisma } from '@prisma/client';
-import { calculateBookingGrossAmount, calculatePaymentSplit } from './payment-policy';
+import {
+  calculateBookingGrossAmount,
+  calculatePaymentSplit,
+} from './payment-policy';
 
 describe('payment policy', () => {
   it('splits paid tuition into 15% platform fee and 85% tutor payout', () => {

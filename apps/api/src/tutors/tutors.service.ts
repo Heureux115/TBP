@@ -23,7 +23,6 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/auth.types';
-import { CreateTutorDocumentDto } from './dto/create-tutor-document.dto';
 import {
   AvailabilityRepeat,
   CreateAvailabilitySlotDto,
@@ -542,30 +541,6 @@ export class TutorsService {
         filePath: stored.publicUrl,
         mimeType: file.mimetype || 'application/octet-stream',
         fileSizeBytes: file.size,
-      },
-    });
-
-    return this.serializeDocument(document);
-  }
-
-  async createDocument(user: AuthenticatedUser, dto: CreateTutorDocumentDto) {
-    this.assertTutor(user);
-
-    const profile = await this.prisma.tutorProfile.upsert({
-      where: { userId: user.id },
-      create: { userId: user.id },
-      update: {},
-    });
-
-    const document = await this.prisma.tutorDocument.create({
-      data: {
-        tutorProfileId: profile.id,
-        uploadedById: user.id,
-        type: dto.type,
-        fileName: dto.fileName,
-        filePath: dto.filePath,
-        mimeType: dto.mimeType,
-        fileSizeBytes: dto.fileSizeBytes,
       },
     });
 

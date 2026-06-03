@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   BookingStatus,
+  NotificationType,
   PaymentProvider,
   PaymentStatus,
   PayoutStatus,
@@ -15,6 +16,7 @@ import {
 import { randomUUID } from 'crypto';
 import { AuthenticatedUser } from '../auth/types/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { calculatePaymentSplit } from './payment-policy';
 
@@ -38,7 +40,10 @@ type PaymentWithRelations = Prisma.PaymentGetPayload<{
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async create(user: AuthenticatedUser, dto: CreatePaymentDto) {
     if (user.role !== UserRole.STUDENT) {
@@ -203,10 +208,29 @@ export class PaymentsService {
         throw new BadRequestException('payment cannot be confirmed');
       }
 
-      return tx.payment.findUniqueOrThrow({
+      const updatedPayment = await tx.payment.findUniqueOrThrow({
         where: { id },
         include: paymentInclude,
       });
+
+      await this.notifications.createMany(tx, [
+        {
+          userId: updatedPayment.booking.studentId,
+          type: NotificationType.PAYMENT_PAID,
+          title: 'Thanh toán thành công',
+          body: `Bạn đã thanh toán ${updatedPayment.amount.toString()} ${updatedPayment.currency} cho buổi học.`,
+          actionUrl: `/payments/${updatedPayment.id}`,
+        },
+        {
+          userId: updatedPayment.booking.tutorProfile.userId,
+          type: NotificationType.PAYMENT_PAID,
+          title: 'Học viên đã thanh toán',
+          body: `${updatedPayment.payer.fullName} đã thanh toán cho buổi học sắp tới.`,
+          actionUrl: `/bookings/${updatedPayment.bookingId}`,
+        },
+      ]);
+
+      return updatedPayment;
     });
 
     return this.serialize(updated);

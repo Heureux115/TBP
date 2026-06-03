@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/types/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,7 +34,9 @@ export class WalletService {
     const amount = new Prisma.Decimal(dto.amount);
 
     if (amount.lte(0)) {
-      throw new BadRequestException('withdrawal amount must be greater than zero');
+      throw new BadRequestException(
+        'withdrawal amount must be greater than zero',
+      );
     }
 
     const wallet = await this.prisma.$transaction(async (tx) => {

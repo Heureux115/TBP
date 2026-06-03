@@ -13,10 +13,18 @@ export function securityMiddleware(
   response.setHeader('x-content-type-options', 'nosniff');
   response.setHeader('x-frame-options', 'DENY');
   response.setHeader('referrer-policy', 'no-referrer');
+  response.setHeader('cross-origin-resource-policy', 'same-site');
   response.setHeader(
     'permissions-policy',
     'camera=(), microphone=(), geolocation=()',
   );
+
+  if (process.env.NODE_ENV === 'production') {
+    response.setHeader(
+      'strict-transport-security',
+      'max-age=31536000; includeSubDomains',
+    );
+  }
 
   const startedAt = Date.now();
   response.on('finish', () => {

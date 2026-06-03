@@ -403,7 +403,10 @@ export class MessagesService {
     return this.serializeConversation(conversation, userId, latestBooking);
   }
 
-  private async findNearestBookingBetweenUsers(userId: string, otherUserId: string) {
+  private async findNearestBookingBetweenUsers(
+    userId: string,
+    otherUserId: string,
+  ) {
     const sharedWhere: Prisma.BookingWhereInput = {
       deletedAt: null,
       OR: [

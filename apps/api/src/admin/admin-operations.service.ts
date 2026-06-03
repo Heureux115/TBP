@@ -1,6 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  AdminAuditAction,
   BookingStatus,
+  DisputeStatus,
+  NotificationType,
   PaymentStatus,
   PayoutStatus,
   Prisma,
@@ -10,6 +17,7 @@ import {
   WithdrawalStatus,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/types/auth.types';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const adminBookingInclude = {
@@ -64,7 +72,10 @@ type AdminWithdrawal = Prisma.WithdrawalGetPayload<{
 
 @Injectable()
 export class AdminOperationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async listBookings() {
     const bookings = await this.prisma.booking.findMany({
@@ -152,6 +163,16 @@ export class AdminOperationsService {
         });
       }
 
+      await tx.adminAuditLog.create({
+        data: {
+          actorId: _admin.id,
+          action: AdminAuditAction.PAYMENT_REFUNDED,
+          resourceType: 'payment',
+          resourceId: payment.id,
+          reason,
+        },
+      });
+
       return tx.payment.findUniqueOrThrow({
         where: { id: payment.id },
         include: adminPaymentInclude,
@@ -168,7 +189,9 @@ export class AdminOperationsService {
       take: 200,
     });
 
-    return withdrawals.map((withdrawal) => this.serializeWithdrawal(withdrawal));
+    return withdrawals.map((withdrawal) =>
+      this.serializeWithdrawal(withdrawal),
+    );
   }
 
   async markWithdrawalProcessing(_admin: AuthenticatedUser, id: string) {
@@ -182,13 +205,32 @@ export class AdminOperationsService {
     }
 
     if (withdrawal.status !== WithdrawalStatus.PENDING) {
-      throw new BadRequestException('only pending withdrawals can be processed');
+      throw new BadRequestException(
+        'only pending withdrawals can be processed',
+      );
     }
 
     const updated = await this.prisma.withdrawal.update({
       where: { id },
       data: { status: WithdrawalStatus.PROCESSING },
       include: adminWithdrawalInclude,
+    });
+
+    await this.notifications.create(this.prisma, {
+      userId: withdrawal.tutorProfile.userId,
+      type: NotificationType.WITHDRAWAL_UPDATED,
+      title: 'Yêu cầu rút tiền đang được xử lý',
+      body: `Yêu cầu rút ${withdrawal.amount.toString()} ${withdrawal.currency} đang được admin xử lý.`,
+      actionUrl: '/payments',
+    });
+
+    await this.prisma.adminAuditLog.create({
+      data: {
+        actorId: _admin.id,
+        action: AdminAuditAction.WITHDRAWAL_PROCESSING,
+        resourceType: 'withdrawal',
+        resourceId: id,
+      },
     });
 
     return this.serializeWithdrawal(updated);
@@ -218,6 +260,23 @@ export class AdminOperationsService {
         processedAt: new Date(),
       },
       include: adminWithdrawalInclude,
+    });
+
+    await this.notifications.create(this.prisma, {
+      userId: withdrawal.tutorProfile.userId,
+      type: NotificationType.WITHDRAWAL_UPDATED,
+      title: 'Yêu cầu rút tiền đã được thanh toán',
+      body: `Admin đã xác nhận chuyển ${withdrawal.amount.toString()} ${withdrawal.currency}.`,
+      actionUrl: '/payments',
+    });
+
+    await this.prisma.adminAuditLog.create({
+      data: {
+        actorId: _admin.id,
+        action: AdminAuditAction.WITHDRAWAL_PAID,
+        resourceType: 'withdrawal',
+        resourceId: id,
+      },
     });
 
     return this.serializeWithdrawal(updated);
@@ -264,7 +323,48 @@ export class AdminOperationsService {
       });
     });
 
+    await this.notifications.create(this.prisma, {
+      userId: withdrawal.tutorProfile.userId,
+      type: NotificationType.WITHDRAWAL_UPDATED,
+      title: 'Yêu cầu rút tiền bị từ chối',
+      body: reason,
+      actionUrl: '/payments',
+    });
+
+    await this.prisma.adminAuditLog.create({
+      data: {
+        actorId: _admin.id,
+        action: AdminAuditAction.WITHDRAWAL_REJECTED,
+        resourceType: 'withdrawal',
+        resourceId: id,
+        reason,
+      },
+    });
+
     return this.serializeWithdrawal(updated);
+  }
+
+  async listAuditLogs() {
+    const logs = await this.prisma.adminAuditLog.findMany({
+      include: { actor: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      resourceType: log.resourceType,
+      resourceId: log.resourceId,
+      reason: log.reason,
+      metadata: log.metadata,
+      createdAt: log.createdAt.toISOString(),
+      actor: {
+        id: log.actor.id,
+        fullName: log.actor.fullName,
+        email: log.actor.email,
+      },
+    }));
   }
 
   async listUsers(role?: UserRole) {
@@ -320,26 +420,77 @@ export class AdminOperationsService {
       paidPayments,
       pendingPayments,
       refundedPayments,
+      openDisputes,
+      underReviewDisputes,
     ] = await this.prisma.$transaction([
       this.prisma.user.count({ where: { deletedAt: null } }),
-      this.prisma.user.count({ where: { deletedAt: null, role: UserRole.STUDENT } }),
-      this.prisma.user.count({ where: { deletedAt: null, role: UserRole.TUTOR } }),
-      this.prisma.user.count({ where: { deletedAt: null, role: { in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] } } }),
-      this.prisma.user.count({ where: { deletedAt: null, status: UserStatus.ACTIVE } }),
-      this.prisma.user.count({ where: { deletedAt: null, status: UserStatus.SUSPENDED } }),
+      this.prisma.user.count({
+        where: { deletedAt: null, role: UserRole.STUDENT },
+      }),
+      this.prisma.user.count({
+        where: { deletedAt: null, role: UserRole.TUTOR },
+      }),
+      this.prisma.user.count({
+        where: {
+          deletedAt: null,
+          role: { in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+        },
+      }),
+      this.prisma.user.count({
+        where: { deletedAt: null, status: UserStatus.ACTIVE },
+      }),
+      this.prisma.user.count({
+        where: { deletedAt: null, status: UserStatus.SUSPENDED },
+      }),
       this.prisma.tutorProfile.count({ where: { deletedAt: null } }),
-      this.prisma.tutorProfile.count({ where: { deletedAt: null, verificationStatus: TutorVerificationStatus.APPROVED } }),
-      this.prisma.tutorProfile.count({ where: { deletedAt: null, verificationStatus: TutorVerificationStatus.PENDING_REVIEW } }),
-      this.prisma.tutorProfile.count({ where: { deletedAt: null, verificationStatus: TutorVerificationStatus.REJECTED } }),
-      this.prisma.tutorProfile.count({ where: { deletedAt: null, verificationStatus: TutorVerificationStatus.DRAFT } }),
+      this.prisma.tutorProfile.count({
+        where: {
+          deletedAt: null,
+          verificationStatus: TutorVerificationStatus.APPROVED,
+        },
+      }),
+      this.prisma.tutorProfile.count({
+        where: {
+          deletedAt: null,
+          verificationStatus: TutorVerificationStatus.PENDING_REVIEW,
+        },
+      }),
+      this.prisma.tutorProfile.count({
+        where: {
+          deletedAt: null,
+          verificationStatus: TutorVerificationStatus.REJECTED,
+        },
+      }),
+      this.prisma.tutorProfile.count({
+        where: {
+          deletedAt: null,
+          verificationStatus: TutorVerificationStatus.DRAFT,
+        },
+      }),
       this.prisma.booking.count({ where: { deletedAt: null } }),
-      this.prisma.booking.count({ where: { deletedAt: null, status: BookingStatus.PENDING } }),
-      this.prisma.booking.count({ where: { deletedAt: null, status: BookingStatus.CONFIRMED } }),
-      this.prisma.booking.count({ where: { deletedAt: null, status: BookingStatus.COMPLETED } }),
-      this.prisma.booking.count({ where: { deletedAt: null, status: BookingStatus.CANCELLED } }),
+      this.prisma.booking.count({
+        where: { deletedAt: null, status: BookingStatus.PENDING },
+      }),
+      this.prisma.booking.count({
+        where: { deletedAt: null, status: BookingStatus.CONFIRMED },
+      }),
+      this.prisma.booking.count({
+        where: { deletedAt: null, status: BookingStatus.COMPLETED },
+      }),
+      this.prisma.booking.count({
+        where: { deletedAt: null, status: BookingStatus.CANCELLED },
+      }),
       this.prisma.payment.findMany({ where: { status: PaymentStatus.PAID } }),
-      this.prisma.payment.findMany({ where: { status: PaymentStatus.PENDING } }),
-      this.prisma.payment.findMany({ where: { status: PaymentStatus.REFUNDED } }),
+      this.prisma.payment.findMany({
+        where: { status: PaymentStatus.PENDING },
+      }),
+      this.prisma.payment.findMany({
+        where: { status: PaymentStatus.REFUNDED },
+      }),
+      this.prisma.dispute.count({ where: { status: DisputeStatus.OPEN } }),
+      this.prisma.dispute.count({
+        where: { status: DisputeStatus.UNDER_REVIEW },
+      }),
     ]);
 
     const sum = (
@@ -349,7 +500,11 @@ export class AdminOperationsService {
         tutorPayoutAmount: Prisma.Decimal;
       }>,
       field: 'amount' | 'platformFeeAmount' | 'tutorPayoutAmount',
-    ) => items.reduce((total, item) => total.plus(item[field]), new Prisma.Decimal(0));
+    ) =>
+      items.reduce(
+        (total, item) => total.plus(item[field]),
+        new Prisma.Decimal(0),
+      );
 
     return {
       users: {
@@ -379,11 +534,15 @@ export class AdminOperationsService {
         platformFees: sum(paidPayments, 'platformFeeAmount').toString(),
         tutorPayouts: sum(paidPayments, 'tutorPayoutAmount').toString(),
         heldPayouts: sum(
-          paidPayments.filter((payment) => payment.payoutStatus === PayoutStatus.HELD),
+          paidPayments.filter(
+            (payment) => payment.payoutStatus === PayoutStatus.HELD,
+          ),
           'tutorPayoutAmount',
         ).toString(),
         releasedPayouts: sum(
-          paidPayments.filter((payment) => payment.payoutStatus === PayoutStatus.RELEASED),
+          paidPayments.filter(
+            (payment) => payment.payoutStatus === PayoutStatus.RELEASED,
+          ),
           'tutorPayoutAmount',
         ).toString(),
         pendingAmount: sum(pendingPayments, 'amount').toString(),
@@ -391,6 +550,10 @@ export class AdminOperationsService {
         paidCount: paidPayments.length,
         pendingCount: pendingPayments.length,
         refundedCount: refundedPayments.length,
+      },
+      disputes: {
+        open: openDisputes,
+        underReview: underReviewDisputes,
       },
     };
   }

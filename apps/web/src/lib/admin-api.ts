@@ -1,3 +1,5 @@
+import { applyAuthHeaders } from "./auth-storage";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export type AdminBookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
@@ -5,6 +7,7 @@ export type AdminPaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "
 export type AdminPaymentProvider = "MOCK" | "VNPAY" | "MOMO";
 export type AdminPayoutStatus = "HELD" | "RELEASED" | "CANCELLED" | "REFUNDED";
 export type AdminWithdrawalStatus = "PENDING" | "PROCESSING" | "PAID" | "REJECTED" | "CANCELLED";
+export type AdminDisputeStatus = "OPEN" | "UNDER_REVIEW" | "RESOLVED_REFUNDED" | "REJECTED";
 
 export type AdminBooking = {
   id: string;
@@ -110,6 +113,53 @@ export type AdminWithdrawal = {
   };
 };
 
+export type AdminDispute = {
+  id: string;
+  status: AdminDisputeStatus;
+  reason: string;
+  adminNote: string | null;
+  resolution: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+  openedBy: {
+    id: string;
+    fullName: string;
+    email: string;
+  };
+  resolvedBy: {
+    id: string;
+    fullName: string;
+    email: string;
+  } | null;
+  booking: {
+    id: string;
+    status: AdminBookingStatus;
+    startsAt: string;
+    endsAt: string;
+    student: { id: string; fullName: string; email: string };
+    tutor: { id: string; fullName: string; email: string };
+  };
+  payment: {
+    id: string;
+    amount: string;
+    status: AdminPaymentStatus;
+    payoutStatus: AdminPayoutStatus;
+    refundedAt: string | null;
+  };
+};
+
+export type AdminAuditLog = {
+  id: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  reason: string | null;
+  metadata: unknown;
+  createdAt: string;
+  actor: { id: string; fullName: string; email: string };
+};
+
 export type AdminUser = {
   id: string;
   email: string;
@@ -158,16 +208,21 @@ export type AdminSummary = {
     pendingCount: number;
     refundedCount: number;
   };
+  disputes: {
+    open: number;
+    underReview: number;
+  };
 };
 
 async function request<T>(path: string, token: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers);
-  headers.set("Authorization", `Bearer ${token}`);
   headers.set("Content-Type", "application/json");
+  await applyAuthHeaders(headers, token, options.method || "GET");
 
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    credentials: "include",
   });
   const body = await response.json().catch(() => null);
 
@@ -224,4 +279,33 @@ export function rejectAdminWithdrawal(token: string, id: string, reason: string)
     method: "PATCH",
     body: JSON.stringify({ reason }),
   });
+}
+
+export function getAdminDisputes(token: string) {
+  return request<AdminDispute[]>("/admin/disputes", token);
+}
+
+export function markAdminDisputeReview(token: string, id: string, adminNote?: string) {
+  return request<AdminDispute>(`/admin/disputes/${id}/review`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ adminNote }),
+  });
+}
+
+export function refundAdminDispute(token: string, id: string, adminNote?: string) {
+  return request<AdminDispute>(`/admin/disputes/${id}/refund`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ adminNote }),
+  });
+}
+
+export function rejectAdminDispute(token: string, id: string, adminNote?: string) {
+  return request<AdminDispute>(`/admin/disputes/${id}/reject`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ adminNote }),
+  });
+}
+
+export function getAdminAuditLogs(token: string) {
+  return request<AdminAuditLog[]>("/admin/audit-logs", token);
 }

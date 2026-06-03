@@ -1,3 +1,5 @@
+import { applyAuthHeaders } from "./auth-storage";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export type PublicUser = {
@@ -31,13 +33,12 @@ async function request<T>(
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
 
-  if (options.token) {
-    headers.set("Authorization", `Bearer ${options.token}`);
-  }
+  await applyAuthHeaders(headers, options.token, options.method || "GET");
 
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    credentials: "include",
   });
 
   const body = await response.json().catch(() => null);

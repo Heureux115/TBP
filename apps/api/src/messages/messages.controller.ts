@@ -58,11 +58,7 @@ export class MessagesController {
     @Param('id') id: string,
     @Param('messageId') messageId: string,
   ) {
-    return this.messagesService.deleteMessageForMe(
-      request.user,
-      id,
-      messageId,
-    );
+    return this.messagesService.deleteMessageForMe(request.user, id, messageId);
   }
 
   @Patch('conversations/:id/messages/:messageId/recall')

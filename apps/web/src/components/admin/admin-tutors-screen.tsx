@@ -30,7 +30,7 @@ export function AdminTutorsScreen({ initialState }: { initialState: ScreenState 
     const token = getAccessToken();
     if (!token || initialState !== "list") return;
 
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
     getAdminTutors(token, status === "ALL" ? undefined : status)
       .then(setRows)
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Không thể tải hồ sơ gia sư."))

@@ -18,7 +18,6 @@ import { TutorDocumentType } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/types/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TutorsService } from './tutors.service';
-import { CreateTutorDocumentDto } from './dto/create-tutor-document.dto';
 import { UploadUrlDto } from './dto/upload-url.dto';
 import { UpsertTutorProfileDto } from './dto/upsert-tutor-profile.dto';
 import {
@@ -123,13 +122,5 @@ export class TutorsController {
     @UploadedFile() file: MultipartFile,
   ) {
     return this.tutorsService.uploadDocument(request.user, type, file);
-  }
-
-  @Post('documents')
-  createDocument(
-    @Req() request: AuthenticatedRequest,
-    @Body() dto: CreateTutorDocumentDto,
-  ) {
-    return this.tutorsService.createDocument(request.user, dto);
   }
 }
