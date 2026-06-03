@@ -41,7 +41,7 @@ export default function AdminBookingsPage() {
     const token = getAccessToken();
     if (!token) return;
     const highlightedBookingId = new URLSearchParams(window.location.search).get("bookingId");
-    if (highlightedBookingId) setQuery(highlightedBookingId);
+    if (highlightedBookingId) queueMicrotask(() => setQuery(highlightedBookingId));
     getAdminBookings(token)
       .then(setBookings)
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Không thể tải booking."))

@@ -84,6 +84,8 @@ export function TutorDetailScreen({ id }: { id: string }) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [eligibleBookings, setEligibleBookings] = useState<EligibleReviewBooking[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [showBookingConfirm, setShowBookingConfirm] = useState(false);
+  const [createdBookingId, setCreatedBookingId] = useState("");
   const [selectedTeachingMode, setSelectedTeachingMode] = useState<Exclude<BookingTeachingMode, "BOTH">>("ONLINE");
   const [selectedReviewBookingId, setSelectedReviewBookingId] = useState("");
   const [reviewRating, setReviewRating] = useState(5);
@@ -96,6 +98,10 @@ export function TutorDetailScreen({ id }: { id: string }) {
   const [isReviewing, setIsReviewing] = useState(false);
   const auth = useAuthStore();
   const effectiveState = forcedState && forcedState !== "ready" ? forcedState : state;
+  const selectedSlot = useMemo(
+    () => slots.find((slot) => slot.id === selectedSlotId) || null,
+    [selectedSlotId, slots],
+  );
 
   useEffect(() => {
     const stateParam = new URLSearchParams(window.location.search).get("state") as DetailState | null;
@@ -120,10 +126,13 @@ export function TutorDetailScreen({ id }: { id: string }) {
 
     setIsBooking(true);
     setBookingMessage("");
+    setCreatedBookingId("");
     try {
-      await createBooking(auth.token, selectedSlotId, selectedTeachingMode);
+      const booking = await createBooking(auth.token, selectedSlotId, selectedTeachingMode);
       setBookingMessage("Đã gửi yêu cầu đặt lịch. Gia sư cần xác nhận trước khi bạn thanh toán.");
+      setCreatedBookingId(booking.id);
       setSelectedSlotId(null);
+      setShowBookingConfirm(false);
       const availability = await getPublicTutorAvailability(id, week.toISOString());
       setSlots(availability.slots);
     } catch (requestError) {
@@ -161,18 +170,20 @@ export function TutorDetailScreen({ id }: { id: string }) {
   }, [forcedState, hasMounted, id, week]);
 
   useEffect(() => {
-    if (tutor?.teachingMode === "OFFLINE") {
-      setSelectedTeachingMode("OFFLINE");
-    }
+    queueMicrotask(() => {
+      if (tutor?.teachingMode === "OFFLINE") {
+        setSelectedTeachingMode("OFFLINE");
+      }
 
-    if (tutor?.teachingMode === "ONLINE") {
-      setSelectedTeachingMode("ONLINE");
-    }
+      if (tutor?.teachingMode === "ONLINE") {
+        setSelectedTeachingMode("ONLINE");
+      }
+    });
   }, [tutor?.teachingMode]);
 
   useEffect(() => {
     if (!auth.token || auth.user?.role !== "STUDENT") {
-      setEligibleBookings([]);
+      queueMicrotask(() => setEligibleBookings([]));
       return;
     }
 
@@ -493,7 +504,7 @@ export function TutorDetailScreen({ id }: { id: string }) {
                   <button
                     className="mt-5 w-full rounded-xl bg-[var(--primary)] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[var(--primary-container)] disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={!selectedSlotId || isBooking}
-                    onClick={handleCreateBooking}
+                    onClick={() => setShowBookingConfirm(true)}
                     type="button"
                   >
                     {isBooking ? "Dang dat lich..." : "Dat lich hoc"}
@@ -501,6 +512,11 @@ export function TutorDetailScreen({ id }: { id: string }) {
                   {bookingMessage ? (
                     <p className="mt-3 rounded-lg bg-[var(--surface-container-low)] p-3 text-sm font-semibold text-[var(--on-surface-variant)]">
                       {bookingMessage}
+                      {createdBookingId ? (
+                        <Link className="ml-2 font-black text-[var(--primary)] hover:underline" href={`/bookings/${createdBookingId}`}>
+                          Xem lịch học
+                        </Link>
+                      ) : null}
                     </p>
                   ) : null}
                   <div className="mt-3 grid grid-cols-2 gap-2">
@@ -517,7 +533,91 @@ export function TutorDetailScreen({ id }: { id: string }) {
           </>
         ) : null}
       </main>
+      {showBookingConfirm && tutor && selectedSlot ? (
+        <BookingConfirmModal
+          busy={isBooking}
+          mode={selectedTeachingMode}
+          onCancel={() => setShowBookingConfirm(false)}
+          onConfirm={handleCreateBooking}
+          slot={selectedSlot}
+          tutor={tutor}
+        />
+      ) : null}
     </PublicShell>
+  );
+}
+
+function BookingConfirmModal({
+  busy,
+  mode,
+  onCancel,
+  onConfirm,
+  slot,
+  tutor,
+}: {
+  busy: boolean;
+  mode: Exclude<BookingTeachingMode, "BOTH">;
+  onCancel: () => void;
+  onConfirm: () => void;
+  slot: TutorAvailabilitySlot;
+  tutor: PublicTutorDetail;
+}) {
+  const hourlyRate = Number(tutor.hourlyRate || 0);
+  const startsAt = new Date(slot.startsAt);
+  const endsAt = new Date(slot.endsAt);
+  const durationHours = Math.max(0, (endsAt.getTime() - startsAt.getTime()) / 3_600_000);
+  const tuition = Math.round(hourlyRate * durationHours);
+  const platformFee = Math.round(tuition * 0.15);
+  const total = tuition;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 px-4 py-6">
+      <section className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
+        <header className="bg-[var(--primary)] px-6 py-5 text-white">
+          <h2 className="text-xl font-black">Xác nhận đặt lịch</h2>
+          <p className="mt-1 text-sm text-white/80">Gia sư sẽ xác nhận trước khi học sinh thanh toán.</p>
+        </header>
+        <div className="space-y-4 p-6">
+          <div>
+            <p className="text-xs font-bold uppercase text-[var(--on-surface-variant)]">Gia sư</p>
+            <p className="mt-1 text-lg font-black">{tutor.fullName}</p>
+            <p className="text-sm text-[var(--on-surface-variant)]">{teachingModeLabel(mode)}</p>
+          </div>
+          <div className="rounded-lg bg-[var(--surface-container-low)] p-4">
+            <p className="font-bold">{startsAt.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}</p>
+            <p className="mt-1 text-sm text-[var(--on-surface-variant)]">
+              {startsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {endsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+            </p>
+          </div>
+          <div className="space-y-2 rounded-lg border border-[var(--outline-variant)] p-4 text-sm">
+            <SummaryRow label="Học phí dự kiến" value={formatMoney(String(tuition))} />
+            <SummaryRow label="Phí nền tảng đã bao gồm" value={formatMoney(String(platformFee))} />
+            <hr className="border-[var(--outline-variant)]" />
+            <SummaryRow strong label="Tổng giữ chỗ" value={formatMoney(String(total))} />
+          </div>
+          <p className="rounded-lg bg-[var(--secondary-container)]/40 p-3 text-xs font-semibold leading-5 text-[var(--on-surface-variant)]">
+            Sau khi gia sư xác nhận, bạn sẽ thanh toán ở trang chi tiết lịch học. Tiền được giữ bởi hệ thống và chỉ chuyển cho gia sư khi buổi học hoàn thành.
+          </p>
+        </div>
+        <footer className="grid grid-cols-2 gap-3 bg-[var(--surface-container-low)] p-4">
+          <button className="rounded-lg border border-[var(--outline-variant)] py-3 text-sm font-black text-[var(--on-surface-variant)]" disabled={busy} onClick={onCancel} type="button">
+            Hủy
+          </button>
+          <button className="rounded-lg bg-[var(--primary)] py-3 text-sm font-black text-white disabled:opacity-60" disabled={busy} onClick={onConfirm} type="button">
+            {busy ? "Đang gửi..." : "Gửi yêu cầu"}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function SummaryRow({ label, strong = false, value }: { label: string; strong?: boolean; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className={strong ? "font-black" : "text-[var(--on-surface-variant)]"}>{label}</span>
+      <span className={strong ? "text-lg font-black text-[var(--primary)]" : "font-bold"}>{value}</span>
+    </div>
   );
 }
 

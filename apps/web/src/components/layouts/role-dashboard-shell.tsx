@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { getCurrentUser, type PublicUser } from "@/lib/api";
 import { clearTokens, getAccessToken } from "@/lib/auth-storage";
+import { getMyNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "@/lib/notification-api";
 import { getMyTutorProfile, type TutorProfile } from "@/lib/tutor-api";
 
 export type DashboardRole = "admin" | "tutor" | "student";
@@ -14,6 +15,7 @@ export type DashboardSection =
   | "students"
   | "bookings"
   | "payments"
+  | "disputes"
   | "messages"
   | "profile"
   | "approvals"
@@ -52,6 +54,7 @@ const NAV_BY_ROLE: Record<DashboardRole, NavItem[]> = {
     { key: "dashboard", href: "/admin/dashboard", icon: "dashboard", label: "Tổng quan" },
     { key: "tutors", href: "/admin/tutors", icon: "school", label: "Gia sư" },
     { key: "payments", href: "/admin/payments", icon: "payments", label: "Thanh toán" },
+    { key: "disputes", href: "/admin/disputes", icon: "gavel", label: "Dispute" },
   ],
   tutor: [
     { key: "dashboard", href: "/tutor/dashboard", icon: "dashboard", label: "Tổng quan" },
@@ -83,6 +86,11 @@ export function RoleDashboardShell({
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [profile, setProfile] = useState<TutorProfile | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState("");
   const labels = ROLE_LABELS[role];
 
   useEffect(() => {
@@ -100,6 +108,12 @@ export function RoleDashboardShell({
         }
 
         setUser(currentUser);
+        getMyNotifications(token)
+          .then((result) => {
+            setUnreadNotifications(result.unreadCount);
+            setNotifications(result.items);
+          })
+          .catch(() => undefined);
         if (role === "tutor" && currentUser.role === "TUTOR") {
           return getMyTutorProfile(token).then(setProfile).catch(() => undefined);
         }
@@ -124,6 +138,68 @@ export function RoleDashboardShell({
   function handleLogout() {
     clearTokens();
     router.replace("/auth/login");
+  }
+
+  async function refreshNotifications() {
+    const token = getAccessToken();
+    if (!token) return;
+
+    setNotificationsLoading(true);
+    setNotificationsError("");
+    try {
+      const result = await getMyNotifications(token);
+      setUnreadNotifications(result.unreadCount);
+      setNotifications(result.items);
+    } catch (requestError) {
+      setNotificationsError(requestError instanceof Error ? requestError.message : "Không thể tải thông báo.");
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }
+
+  async function handleToggleNotifications() {
+    const nextOpen = !notificationsOpen;
+    setNotificationsOpen(nextOpen);
+    if (nextOpen) {
+      await refreshNotifications();
+    }
+  }
+
+  async function handleReadNotification(item: NotificationItem) {
+    const token = getAccessToken();
+    if (!token) return;
+
+    if (!item.readAt) {
+      try {
+        const updated = await markNotificationRead(token, item.id);
+        setNotifications((current) => current.map((entry) => (entry.id === item.id ? updated : entry)));
+        setUnreadNotifications((count) => Math.max(0, count - 1));
+      } catch {
+        return;
+      }
+    }
+
+    if (item.actionUrl) {
+      setNotificationsOpen(false);
+      router.push(item.actionUrl);
+    }
+  }
+
+  async function handleReadAllNotifications() {
+    const token = getAccessToken();
+    if (!token || notificationsLoading) return;
+
+    setNotificationsLoading(true);
+    setNotificationsError("");
+    try {
+      const result = await markAllNotificationsRead(token);
+      setUnreadNotifications(result.unreadCount);
+      setNotifications(result.items);
+    } catch (requestError) {
+      setNotificationsError(requestError instanceof Error ? requestError.message : "Không thể cập nhật thông báo.");
+    } finally {
+      setNotificationsLoading(false);
+    }
   }
 
   return (
@@ -203,10 +279,54 @@ export function RoleDashboardShell({
                   <Icon name="chat" />
                 </Link>
               )}
-              <button className="relative rounded-full p-2 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" type="button" aria-label="Thông báo">
-                <Icon name="notifications" />
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[var(--error)]" />
-              </button>
+              <div className="relative">
+                <button className="relative rounded-full p-2 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" type="button" aria-label="Thông báo" onClick={handleToggleNotifications}>
+                  <Icon name="notifications" />
+                  {unreadNotifications ? (
+                    <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--error)] px-1 text-[10px] font-black leading-none text-white">
+                      {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                    </span>
+                  ) : null}
+                </button>
+                {notificationsOpen ? (
+                  <section className="absolute right-0 top-12 z-50 w-[min(92vw,380px)] overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white shadow-xl">
+                    <div className="flex items-center justify-between border-b border-[var(--outline-variant)] px-4 py-3">
+                      <div>
+                        <h2 className="text-sm font-black text-[var(--on-surface)]">Thông báo</h2>
+                        <p className="text-xs font-semibold text-[var(--on-surface-variant)]">{unreadNotifications ? `${unreadNotifications} chưa đọc` : "Không có thông báo mới"}</p>
+                      </div>
+                      <button className="rounded-lg px-3 py-2 text-xs font-black text-[var(--primary)] hover:bg-[var(--surface-container-low)] disabled:opacity-50" disabled={!unreadNotifications || notificationsLoading} onClick={handleReadAllNotifications} type="button">
+                        Đọc tất cả
+                      </button>
+                    </div>
+                    {notificationsError ? <p className="m-3 rounded-lg bg-[var(--error-container)] p-3 text-xs font-bold text-[var(--error)]">{notificationsError}</p> : null}
+                    <div className="max-h-[420px] overflow-y-auto">
+                      {notificationsLoading && !notifications.length ? (
+                        <p className="p-5 text-sm font-semibold text-[var(--on-surface-variant)]">Đang tải thông báo...</p>
+                      ) : notifications.length ? (
+                        notifications.map((item) => (
+                          <button
+                            className={`flex w-full gap-3 border-b border-[var(--outline-variant)] px-4 py-3 text-left hover:bg-[var(--surface-container-low)] ${item.readAt ? "bg-white" : "bg-[var(--primary-container)]/10"}`}
+                            key={item.id}
+                            onClick={() => handleReadNotification(item)}
+                            type="button"
+                          >
+                            <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${item.readAt ? "bg-[var(--outline-variant)]" : "bg-[var(--primary)]"}`} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-black text-[var(--on-surface)]">{item.title}</span>
+                              <span className="mt-1 block line-clamp-2 text-xs leading-5 text-[var(--on-surface-variant)]">{item.body}</span>
+                              <span className="mt-2 block text-[11px] font-bold text-[var(--outline)]">{formatNotificationTime(item.createdAt)}</span>
+                            </span>
+                            {item.actionUrl ? <Icon className="mt-4 text-base text-[var(--outline)]" name="chevron_right" /> : null}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="p-5 text-sm font-semibold text-[var(--on-surface-variant)]">Chưa có thông báo nào.</p>
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
               <div className="hidden h-8 w-px bg-[var(--outline-variant)] sm:block" />
               <div className="hidden text-right sm:block">
                 <p className="text-sm font-black leading-none">{displayName}</p>
@@ -232,6 +352,19 @@ function defaultDashboardForRole(userRole: PublicUser["role"]) {
   if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") return "/admin/dashboard";
   if (userRole === "TUTOR") return "/tutor/dashboard";
   return "/dashboard";
+}
+
+function formatNotificationTime(value: string) {
+  const createdAt = new Date(value).getTime();
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - createdAt) / 60000));
+
+  if (diffMinutes < 1) return "Vừa xong";
+  if (diffMinutes < 60) return `${diffMinutes} phút trước`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+
+  return new Date(value).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function NavLink({ active, item }: { active: boolean; item: NavItem }) {

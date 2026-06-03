@@ -79,6 +79,7 @@ export default function AdminDashboardPage() {
             <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
               <Kpi icon="school" label="Gia sư đã duyệt" value={String(summary.tutors.approved)} note={`${summary.tutors.pendingReview} chờ duyệt`} tone="tertiary" />
               <Kpi icon="task_alt" label="Tỉ lệ hoàn thành" value={`${completionRate}%`} note={`${summary.bookings.completed}/${summary.bookings.total} booking`} />
+              <Kpi icon="gavel" label="Dispute đang mở" value={String(summary.disputes.open + summary.disputes.underReview)} note={`${summary.disputes.underReview} đang xem xét`} tone="secondary" />
             </section>
 
             <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">

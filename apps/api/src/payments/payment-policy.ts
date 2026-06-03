@@ -24,8 +24,5 @@ export function calculateBookingGrossAmount(
     Math.round((endsAt.getTime() - startsAt.getTime()) / 60000),
   );
 
-  return new Prisma.Decimal(hourlyRate)
-    .mul(minutes)
-    .div(60)
-    .toDecimalPlaces(2);
+  return new Prisma.Decimal(hourlyRate).mul(minutes).div(60).toDecimalPlaces(2);
 }

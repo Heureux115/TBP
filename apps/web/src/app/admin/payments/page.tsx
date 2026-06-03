@@ -42,7 +42,7 @@ export default function AdminPaymentsPage() {
     const token = getAccessToken();
     if (!token) return;
     const highlightedPaymentId = new URLSearchParams(window.location.search).get("paymentId");
-    if (highlightedPaymentId) setQuery(highlightedPaymentId);
+    if (highlightedPaymentId) queueMicrotask(() => setQuery(highlightedPaymentId));
     Promise.all([getAdminPayments(token), getAdminWithdrawals(token)])
       .then(([paymentItems, withdrawalItems]) => {
         setPayments(paymentItems);

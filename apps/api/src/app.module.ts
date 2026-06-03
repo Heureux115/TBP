@@ -13,6 +13,8 @@ import { PaymentsModule } from './payments/payments.module';
 import { MessagesModule } from './messages/messages.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { WalletModule } from './wallet/wallet.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { DisputesModule } from './disputes/disputes.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { WalletModule } from './wallet/wallet.module';
     MessagesModule,
     ReviewsModule,
     WalletModule,
+    NotificationsModule,
+    DisputesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

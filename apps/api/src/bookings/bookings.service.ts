@@ -10,6 +10,7 @@ import {
   PayoutStatus,
   Prisma,
   TeachingMode,
+  NotificationType,
   TutorVerificationStatus,
   UserRole,
   UserStatus,
@@ -17,6 +18,7 @@ import {
 import { AuthenticatedUser } from '../auth/types/auth.types';
 import { calculateBookingGrossAmount } from '../payments/payment-policy';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 
 const bookingInclude = {
@@ -39,7 +41,10 @@ type BookingWithRelations = Prisma.BookingGetPayload<{
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async create(user: AuthenticatedUser, dto: CreateBookingDto) {
     if (user.role !== UserRole.STUDENT) {
@@ -92,7 +97,7 @@ export class BookingsService {
         data: { isBooked: true },
       });
 
-      return tx.booking.create({
+      const created = await tx.booking.create({
         data: {
           studentId: user.id,
           tutorProfileId: slot.tutorProfileId,
@@ -110,6 +115,16 @@ export class BookingsService {
         },
         include: bookingInclude,
       });
+
+      await this.notifications.create(tx, {
+        userId: slot.tutorProfile.userId,
+        type: NotificationType.BOOKING_REQUESTED,
+        title: 'Có yêu cầu đặt lịch mới',
+        body: `${created.student.fullName} đã đặt lịch ${created.startsAt.toLocaleString('vi-VN')}.`,
+        actionUrl: `/bookings/${created.id}`,
+      });
+
+      return created;
     });
 
     return this.serializeBooking(booking);
@@ -201,7 +216,7 @@ export class BookingsService {
         });
       }
 
-      return tx.booking.update({
+      const updatedBooking = await tx.booking.update({
         where: { id },
         data: {
           status: BookingStatus.CANCELLED,
@@ -209,6 +224,25 @@ export class BookingsService {
         },
         include: bookingInclude,
       });
+
+      await this.notifications.createMany(tx, [
+        {
+          userId: booking.studentId,
+          type: NotificationType.BOOKING_CANCELLED,
+          title: 'Lịch học đã bị hủy',
+          body: `Lịch học với ${booking.tutorProfile.user.fullName} đã bị hủy.`,
+          actionUrl: `/bookings/${booking.id}`,
+        },
+        {
+          userId: booking.tutorProfile.userId,
+          type: NotificationType.BOOKING_CANCELLED,
+          title: 'Lịch dạy đã bị hủy',
+          body: `Lịch dạy với ${booking.student.fullName} đã bị hủy.`,
+          actionUrl: `/bookings/${booking.id}`,
+        },
+      ]);
+
+      return updatedBooking;
     });
 
     return this.serializeBooking(updated);
@@ -240,10 +274,22 @@ export class BookingsService {
       throw new BadRequestException('cannot confirm a past booking');
     }
 
-    const updated = await this.prisma.booking.update({
-      where: { id },
-      data: { status: BookingStatus.CONFIRMED },
-      include: bookingInclude,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedBooking = await tx.booking.update({
+        where: { id },
+        data: { status: BookingStatus.CONFIRMED },
+        include: bookingInclude,
+      });
+
+      await this.notifications.create(tx, {
+        userId: booking.studentId,
+        type: NotificationType.BOOKING_CONFIRMED,
+        title: 'Gia sư đã xác nhận lịch',
+        body: `${booking.tutorProfile.user.fullName} đã xác nhận lịch học. Bạn có thể thanh toán.`,
+        actionUrl: `/bookings/${booking.id}`,
+      });
+
+      return updatedBooking;
     });
 
     return this.serializeBooking(updated);
@@ -260,7 +306,9 @@ export class BookingsService {
     }
 
     if (booking.tutorProfile.userId !== user.id) {
-      throw new ForbiddenException('only the assigned tutor can complete bookings');
+      throw new ForbiddenException(
+        'only the assigned tutor can complete bookings',
+      );
     }
 
     if (booking.status !== BookingStatus.CONFIRMED) {
@@ -268,7 +316,9 @@ export class BookingsService {
     }
 
     if (booking.startsAt > new Date()) {
-      throw new BadRequestException('booking cannot be completed before it starts');
+      throw new BadRequestException(
+        'booking cannot be completed before it starts',
+      );
     }
 
     if (!booking.payment || booking.payment.status !== PaymentStatus.PAID) {
@@ -298,11 +348,30 @@ export class BookingsService {
         },
       });
 
-      return tx.booking.update({
+      const updatedBooking = await tx.booking.update({
         where: { id },
         data: { status: BookingStatus.COMPLETED },
         include: bookingInclude,
       });
+
+      await this.notifications.createMany(tx, [
+        {
+          userId: booking.studentId,
+          type: NotificationType.BOOKING_COMPLETED,
+          title: 'Buổi học đã hoàn thành',
+          body: `Buổi học với ${booking.tutorProfile.user.fullName} đã hoàn thành. Bạn có thể gửi đánh giá.`,
+          actionUrl: `/tutors/${booking.tutorProfileId}`,
+        },
+        {
+          userId: booking.tutorProfile.userId,
+          type: NotificationType.BOOKING_COMPLETED,
+          title: 'Doanh thu đã được ghi nhận',
+          body: `Hệ thống đã mở khóa payout cho buổi học với ${booking.student.fullName}.`,
+          actionUrl: '/payments',
+        },
+      ]);
+
+      return updatedBooking;
     });
 
     return this.serializeBooking(updated);
@@ -373,7 +442,10 @@ export class BookingsService {
     tutorMode: TeachingMode,
     requestedMode?: TeachingMode,
   ) {
-    if (tutorMode === TeachingMode.ONLINE || tutorMode === TeachingMode.OFFLINE) {
+    if (
+      tutorMode === TeachingMode.ONLINE ||
+      tutorMode === TeachingMode.OFFLINE
+    ) {
       if (requestedMode && requestedMode !== tutorMode) {
         throw new BadRequestException(
           `tutor only supports ${tutorMode.toLowerCase()} lessons`,
@@ -384,7 +456,9 @@ export class BookingsService {
     }
 
     if (!requestedMode || requestedMode === TeachingMode.BOTH) {
-      throw new BadRequestException('please choose ONLINE or OFFLINE lesson mode');
+      throw new BadRequestException(
+        'please choose ONLINE or OFFLINE lesson mode',
+      );
     }
 
     return requestedMode;

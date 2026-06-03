@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseEnumPipe, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseEnumPipe,
+  Patch,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Request } from 'express';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -42,6 +52,11 @@ export class AdminOperationsController {
   @Get('payments')
   listPayments() {
     return this.adminOperationsService.listPayments();
+  }
+
+  @Get('audit-logs')
+  listAuditLogs() {
+    return this.adminOperationsService.listAuditLogs();
   }
 
   @Patch('payments/:id/refund')
