@@ -83,7 +83,7 @@ export function TutorDetailScreen({ id }: { id: string }) {
   const [slots, setSlots] = useState<TutorAvailabilitySlot[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [eligibleBookings, setEligibleBookings] = useState<EligibleReviewBooking[]>([]);
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>([]);
   const [showBookingConfirm, setShowBookingConfirm] = useState(false);
   const [createdBookingId, setCreatedBookingId] = useState("");
   const [selectedTeachingMode, setSelectedTeachingMode] = useState<Exclude<BookingTeachingMode, "BOTH">>("ONLINE");
@@ -98,9 +98,12 @@ export function TutorDetailScreen({ id }: { id: string }) {
   const [isReviewing, setIsReviewing] = useState(false);
   const auth = useAuthStore();
   const effectiveState = forcedState && forcedState !== "ready" ? forcedState : state;
-  const selectedSlot = useMemo(
-    () => slots.find((slot) => slot.id === selectedSlotId) || null,
-    [selectedSlotId, slots],
+  const selectedSlots = useMemo(
+    () =>
+      slots
+        .filter((slot) => selectedSlotIds.includes(slot.id))
+        .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
+    [selectedSlotIds, slots],
   );
 
   useEffect(() => {
@@ -114,7 +117,7 @@ export function TutorDetailScreen({ id }: { id: string }) {
   }, []);
 
   async function handleCreateBooking() {
-    if (!selectedSlotId) return;
+    if (!selectedSlotIds.length) return;
     if (!auth.token) {
       window.location.href = `/auth/login?next=${encodeURIComponent(`/tutors/${id}`)}`;
       return;
@@ -128,10 +131,18 @@ export function TutorDetailScreen({ id }: { id: string }) {
     setBookingMessage("");
     setCreatedBookingId("");
     try {
-      const booking = await createBooking(auth.token, selectedSlotId, selectedTeachingMode);
-      setBookingMessage("Đã gửi yêu cầu đặt lịch. Gia sư cần xác nhận trước khi bạn thanh toán.");
-      setCreatedBookingId(booking.id);
-      setSelectedSlotId(null);
+      const createdBookings = [];
+      for (const slotId of selectedSlotIds) {
+        const booking = await createBooking(auth.token, slotId, selectedTeachingMode);
+        createdBookings.push(booking);
+      }
+      setBookingMessage(
+        createdBookings.length === 1
+          ? "Đã gửi yêu cầu đặt lịch. Gia sư cần xác nhận trước khi bạn thanh toán."
+          : `Đã gửi ${createdBookings.length} yêu cầu đặt lịch. Gia sư cần xác nhận từng buổi trước khi bạn thanh toán.`,
+      );
+      setCreatedBookingId(createdBookings[0]?.id || "");
+      setSelectedSlotIds([]);
       setShowBookingConfirm(false);
       const availability = await getPublicTutorAvailability(id, week.toISOString());
       setSlots(availability.slots);
@@ -469,7 +480,10 @@ export function TutorDetailScreen({ id }: { id: string }) {
                   <div className="mb-4 flex items-center justify-between border-y border-[var(--outline-variant)]/50 py-2">
                     <button
                       className="rounded-full p-1 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]"
-                      onClick={() => setWeek((current) => addDays(current, -7))}
+                      onClick={() => {
+                        setSelectedSlotIds([]);
+                        setWeek((current) => addDays(current, -7));
+                      }}
                       type="button"
                     >
                       <Icon name="chevron_left" />
@@ -479,7 +493,10 @@ export function TutorDetailScreen({ id }: { id: string }) {
                     </span>
                     <button
                       className="rounded-full p-1 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]"
-                      onClick={() => setWeek((current) => addDays(current, 7))}
+                      onClick={() => {
+                        setSelectedSlotIds([]);
+                        setWeek((current) => addDays(current, 7));
+                      }}
                       type="button"
                     >
                       <Icon name="chevron_right" />
@@ -487,8 +504,8 @@ export function TutorDetailScreen({ id }: { id: string }) {
                   </div>
 
                   <AvailabilityGrid
-                    selectedSlotId={selectedSlotId}
-                    setSelectedSlotId={setSelectedSlotId}
+                    selectedSlotIds={selectedSlotIds}
+                    setSelectedSlotIds={setSelectedSlotIds}
                     slots={slots}
                     week={week}
                   />
@@ -502,12 +519,12 @@ export function TutorDetailScreen({ id }: { id: string }) {
                   ) : null}
 
                   <button
-                    className="mt-5 w-full rounded-xl bg-[var(--primary)] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[var(--primary-container)] disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!selectedSlotId || isBooking}
+                    className="mt-5 flex min-h-14 w-full items-center justify-center whitespace-nowrap rounded-xl bg-[var(--primary)] px-5 py-4 text-base font-bold text-white shadow-sm transition hover:bg-[var(--primary-container)] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!selectedSlotIds.length || isBooking}
                     onClick={() => setShowBookingConfirm(true)}
                     type="button"
                   >
-                    {isBooking ? "Dang dat lich..." : "Dat lich hoc"}
+                    {isBooking ? "Đang đặt lịch..." : selectedSlotIds.length > 1 ? `Đặt ${selectedSlotIds.length} lịch học` : "Đặt lịch học"}
                   </button>
                   {bookingMessage ? (
                     <p className="mt-3 rounded-lg bg-[var(--surface-container-low)] p-3 text-sm font-semibold text-[var(--on-surface-variant)]">
@@ -533,13 +550,13 @@ export function TutorDetailScreen({ id }: { id: string }) {
           </>
         ) : null}
       </main>
-      {showBookingConfirm && tutor && selectedSlot ? (
+      {showBookingConfirm && tutor && selectedSlots.length ? (
         <BookingConfirmModal
           busy={isBooking}
           mode={selectedTeachingMode}
           onCancel={() => setShowBookingConfirm(false)}
           onConfirm={handleCreateBooking}
-          slot={selectedSlot}
+          slots={selectedSlots}
           tutor={tutor}
         />
       ) : null}
@@ -552,20 +569,23 @@ function BookingConfirmModal({
   mode,
   onCancel,
   onConfirm,
-  slot,
+  slots,
   tutor,
 }: {
   busy: boolean;
   mode: Exclude<BookingTeachingMode, "BOTH">;
   onCancel: () => void;
   onConfirm: () => void;
-  slot: TutorAvailabilitySlot;
+  slots: TutorAvailabilitySlot[];
   tutor: PublicTutorDetail;
 }) {
   const hourlyRate = Number(tutor.hourlyRate || 0);
-  const startsAt = new Date(slot.startsAt);
-  const endsAt = new Date(slot.endsAt);
-  const durationHours = Math.max(0, (endsAt.getTime() - startsAt.getTime()) / 3_600_000);
+  const orderedSlots = [...slots].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  const durationHours = orderedSlots.reduce((sum, slot) => {
+    const startsAt = new Date(slot.startsAt);
+    const endsAt = new Date(slot.endsAt);
+    return sum + Math.max(0, (endsAt.getTime() - startsAt.getTime()) / 3_600_000);
+  }, 0);
   const tuition = Math.round(hourlyRate * durationHours);
   const platformFee = Math.round(tuition * 0.15);
   const total = tuition;
@@ -583,13 +603,23 @@ function BookingConfirmModal({
             <p className="mt-1 text-lg font-black">{tutor.fullName}</p>
             <p className="text-sm text-[var(--on-surface-variant)]">{teachingModeLabel(mode)}</p>
           </div>
-          <div className="rounded-lg bg-[var(--surface-container-low)] p-4">
-            <p className="font-bold">{startsAt.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}</p>
-            <p className="mt-1 text-sm text-[var(--on-surface-variant)]">
-              {startsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {endsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
-            </p>
+          <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg bg-[var(--surface-container-low)] p-4">
+            {orderedSlots.map((slot) => {
+              const startsAt = new Date(slot.startsAt);
+              const endsAt = new Date(slot.endsAt);
+
+              return (
+                <div className="rounded-lg bg-white px-3 py-2" key={slot.id}>
+                  <p className="font-bold">{startsAt.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}</p>
+                  <p className="mt-1 text-sm text-[var(--on-surface-variant)]">
+                    {startsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {endsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              );
+            })}
           </div>
           <div className="space-y-2 rounded-lg border border-[var(--outline-variant)] p-4 text-sm">
+            <SummaryRow label="Số buổi đã chọn" value={`${orderedSlots.length} buổi`} />
             <SummaryRow label="Học phí dự kiến" value={formatMoney(String(tuition))} />
             <SummaryRow label="Phí nền tảng đã bao gồm" value={formatMoney(String(platformFee))} />
             <hr className="border-[var(--outline-variant)]" />
@@ -600,10 +630,10 @@ function BookingConfirmModal({
           </p>
         </div>
         <footer className="grid grid-cols-2 gap-3 bg-[var(--surface-container-low)] p-4">
-          <button className="rounded-lg border border-[var(--outline-variant)] py-3 text-sm font-black text-[var(--on-surface-variant)]" disabled={busy} onClick={onCancel} type="button">
+          <button className="whitespace-nowrap rounded-lg border border-[var(--outline-variant)] px-4 py-3 text-sm font-black text-[var(--on-surface-variant)]" disabled={busy} onClick={onCancel} type="button">
             Hủy
           </button>
-          <button className="rounded-lg bg-[var(--primary)] py-3 text-sm font-black text-white disabled:opacity-60" disabled={busy} onClick={onConfirm} type="button">
+          <button className="whitespace-nowrap rounded-lg bg-[var(--primary)] px-4 py-3 text-sm font-black text-white disabled:opacity-60" disabled={busy} onClick={onConfirm} type="button">
             {busy ? "Đang gửi..." : "Gửi yêu cầu"}
           </button>
         </footer>
@@ -622,13 +652,13 @@ function SummaryRow({ label, strong = false, value }: { label: string; strong?: 
 }
 
 function AvailabilityGrid({
-  selectedSlotId,
-  setSelectedSlotId,
+  selectedSlotIds,
+  setSelectedSlotIds,
   slots,
   week,
 }: {
-  selectedSlotId: string | null;
-  setSelectedSlotId: (id: string | null) => void;
+  selectedSlotIds: string[];
+  setSelectedSlotIds: (ids: string[]) => void;
   slots: TutorAvailabilitySlot[];
   week: Date;
 }) {
@@ -639,17 +669,33 @@ function AvailabilityGrid({
     { label: "Tối", icon: "bedtime", start: 18, end: 24 },
   ];
 
-  function slotFor(day: Date, start: number, end: number) {
-    return slots.find((slot) => {
+  function slotsFor(day: Date, start: number, end: number) {
+    return slots
+      .filter((slot) => {
       const date = new Date(slot.startsAt);
       return (
-        date.getUTCFullYear() === day.getUTCFullYear() &&
-        date.getUTCMonth() === day.getUTCMonth() &&
-        date.getUTCDate() === day.getUTCDate() &&
-        date.getUTCHours() >= start &&
-        date.getUTCHours() < end
+          date.getFullYear() === day.getFullYear() &&
+          date.getMonth() === day.getMonth() &&
+          date.getDate() === day.getDate() &&
+          date.getHours() >= start &&
+          date.getHours() < end
       );
-    });
+      })
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  }
+
+  function toggleSlot(slotId: string) {
+    setSelectedSlotIds(
+      selectedSlotIds.includes(slotId)
+        ? selectedSlotIds.filter((id) => id !== slotId)
+        : [...selectedSlotIds, slotId],
+    );
+  }
+
+  function timeRange(slot: TutorAvailabilitySlot) {
+    const startsAt = new Date(slot.startsAt);
+    const endsAt = new Date(slot.endsAt);
+    return `${startsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - ${endsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
   }
 
   return (
@@ -672,27 +718,39 @@ function AvailabilityGrid({
               {group.label}
             </div>
             {days.map((day) => {
-              const slot = slotFor(day, group.start, group.end);
-              const selected = slot?.id === selectedSlotId;
-              const disabled = !slot || slot.isBooked;
+              const daySlots = slotsFor(day, group.start, group.end);
 
               return (
-                <button
-                  className={[
-                    "min-h-12 rounded border px-1 py-1 text-[10px] font-semibold transition",
-                    selected
-                      ? "border-[var(--primary)] bg-[var(--primary)] text-white shadow-sm"
-                      : disabled
-                        ? "border-[var(--outline-variant)]/30 bg-[var(--surface-container-high)]/60 text-[var(--outline)]"
-                        : "border-[var(--primary)] bg-white text-[var(--primary)] hover:bg-[var(--primary)]/5",
-                  ].join(" ")}
-                  disabled={disabled}
-                  key={`${day.toISOString()}-${group.label}`}
-                  onClick={() => setSelectedSlotId(selected ? null : slot?.id || null)}
-                  type="button"
-                >
-                  {slot ? new Date(slot.startsAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--"}
-                </button>
+                <div className="flex min-h-14 flex-col gap-1 rounded border border-[var(--outline-variant)]/30 bg-[var(--surface-container-high)]/35 p-1" key={`${day.toISOString()}-${group.label}`}>
+                  {daySlots.length ? (
+                    daySlots.map((slot) => {
+                      const selected = selectedSlotIds.includes(slot.id);
+                      const disabled = slot.isBooked;
+
+                      return (
+                        <button
+                          className={[
+                            "min-h-9 rounded px-1.5 py-1 text-[10px] font-semibold leading-tight transition",
+                            selected
+                              ? "bg-[var(--primary)] text-white shadow-sm"
+                              : disabled
+                                ? "bg-[var(--surface-container-high)] text-[var(--outline)]"
+                                : "border border-[var(--primary)] bg-white text-[var(--primary)] hover:bg-[var(--primary)]/5",
+                          ].join(" ")}
+                          disabled={disabled}
+                          key={slot.id}
+                          onClick={() => toggleSlot(slot.id)}
+                          title={timeRange(slot)}
+                          type="button"
+                        >
+                          {timeRange(slot)}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="flex min-h-9 items-center justify-center rounded bg-[var(--surface-container-high)] text-[10px] font-semibold text-[var(--outline)]">--</div>
+                  )}
+                </div>
               );
             })}
           </div>

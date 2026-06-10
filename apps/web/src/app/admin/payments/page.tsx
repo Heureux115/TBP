@@ -162,7 +162,7 @@ export default function AdminPaymentsPage() {
                         {(withdrawal.status === "PENDING" || withdrawal.status === "PROCESSING") ? (
                           <>
                             <button className="rounded-lg bg-[var(--primary)] px-3 py-2 text-xs font-bold text-white disabled:opacity-60" disabled={busyId === withdrawal.id} onClick={() => handleWithdrawalAction(withdrawal.id, "paid")} type="button">Đã chuyển</button>
-                            <button className="rounded-lg border border-[var(--error)]/30 px-3 py-2 text-xs font-bold text-[var(--error)] disabled:opacity-60" disabled={busyId === withdrawal.id} onClick={() => handleWithdrawalAction(withdrawal.id, "reject")} type="button">Từ chối</button>
+                            <button className="whitespace-nowrap rounded-lg border border-[var(--error)]/30 px-3 py-2 text-xs font-bold text-[var(--error)] disabled:opacity-60" disabled={busyId === withdrawal.id} onClick={() => handleWithdrawalAction(withdrawal.id, "reject")} type="button">Từ chối</button>
                           </>
                         ) : null}
                       </div>
@@ -207,7 +207,7 @@ export default function AdminPaymentsPage() {
 
         <section className="overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] text-left">
+            <table className="w-full min-w-[1120px] text-left">
               <thead className="bg-[var(--surface-container-low)] text-xs uppercase text-[var(--on-surface-variant)]">
                 <tr>
                   <th className="px-5 py-4">Giao dịch</th>
@@ -216,7 +216,7 @@ export default function AdminPaymentsPage() {
                   <th className="px-5 py-4">Số tiền</th>
                   <th className="px-5 py-4">Split</th>
                   <th className="px-5 py-4">Trạng thái</th>
-                  <th className="px-5 py-4">Payout</th>
+                  <th className="px-5 py-4 whitespace-nowrap">Payout</th>
                   <th className="px-5 py-4">Ngày</th>
                   <th className="px-5 py-4 text-right">Thao tác</th>
                 </tr>
@@ -231,14 +231,14 @@ export default function AdminPaymentsPage() {
                     <td className="px-5 py-4"><User name={payment.tutor.fullName} email={payment.tutor.email} /></td>
                     <td className="px-5 py-4 text-sm font-black">{money(payment.amount)}</td>
                     <td className="px-5 py-4"><p className="text-xs">Fee: {money(payment.platformFeeAmount || 0)}</p><p className="text-xs">Tutor: {money(payment.tutorPayoutAmount || 0)}</p></td>
-                    <td className="px-5 py-4"><PaymentBadge status={payment.status} /></td>
-                    <td className="px-5 py-4"><PayoutBadge status={payment.payoutStatus} /></td>
+                    <td className="px-5 py-4 whitespace-nowrap"><PaymentBadge status={payment.status} /></td>
+                    <td className="px-5 py-4 whitespace-nowrap"><PayoutBadge status={payment.payoutStatus} /></td>
                     <td className="px-5 py-4 text-sm">{date(payment.createdAt)}</td>
                     <td className="px-5 py-4 text-right">
                       {payment.status === "PAID" ? (
-                        <button className="rounded-lg border border-[var(--error)]/30 px-3 py-2 text-xs font-bold text-[var(--error)] disabled:opacity-60" disabled={busyId === payment.id} onClick={() => handleRefund(payment)} type="button">Hoàn tiền</button>
+                        <button className="whitespace-nowrap rounded-lg border border-[var(--error)]/30 px-3 py-2 text-xs font-bold text-[var(--error)] disabled:opacity-60" disabled={busyId === payment.id} onClick={() => handleRefund(payment)} type="button">Hoàn tiền</button>
                       ) : (
-                        <Link className="rounded-lg border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)]" href={`/admin/payments?paymentId=${payment.id}`}>Xem</Link>
+                        <Link className="inline-flex whitespace-nowrap rounded-lg border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)]" href={`/payments/${payment.id}`}>Xem</Link>
                       )}
                     </td>
                   </tr>
@@ -266,17 +266,17 @@ function User({ email, name }: { email: string; name: string }) {
 function PaymentBadge({ status }: { status: AdminPaymentStatus }) {
   const label = status === "PAID" ? "Paid" : status === "REFUNDED" ? "Refunded" : status === "PENDING" ? "Pending" : status;
   const color = status === "REFUNDED" ? "text-[var(--primary)] bg-[var(--primary-container)]/15" : status === "PAID" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "PENDING" ? "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40" : "text-[var(--error)] bg-[var(--error-container)]";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${color}`}>{label}</span>;
+  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{label}</span>;
 }
 
 function PayoutBadge({ status }: { status: AdminPayment["payoutStatus"] }) {
   const label = status === "HELD" ? "Đang giữ" : status === "RELEASED" ? "Đã mở khóa" : status === "REFUNDED" ? "Đã hoàn" : "Đã hủy";
   const color = status === "RELEASED" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "HELD" ? "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40" : "text-[var(--error)] bg-[var(--error-container)]";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${color}`}>{label}</span>;
+  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{label}</span>;
 }
 
 function WithdrawalBadge({ status }: { status: AdminWithdrawal["status"] }) {
   const label = status === "PENDING" ? "Chờ xử lý" : status === "PROCESSING" ? "Đang xử lý" : status === "PAID" ? "Đã chuyển" : status === "REJECTED" ? "Từ chối" : "Đã hủy";
   const color = status === "PAID" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "REJECTED" || status === "CANCELLED" ? "text-[var(--error)] bg-[var(--error-container)]" : "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${color}`}>{label}</span>;
+  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{label}</span>;
 }

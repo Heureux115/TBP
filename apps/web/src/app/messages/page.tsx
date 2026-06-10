@@ -252,32 +252,32 @@ export default function MessagesPage() {
         </section>
 
         <section className="flex min-w-0 flex-1 flex-col bg-white">
-          <header className="flex h-20 shrink-0 items-center justify-between border-b border-[var(--outline-variant)] px-5 md:px-6">
-            <div className="min-w-0">
+          <header className="flex min-h-20 shrink-0 flex-col gap-3 border-b border-[var(--outline-variant)] px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6">
+            <div className="min-w-0 flex-1">
               <h2 className="truncate text-xl font-black text-[var(--primary)]">{conversationName(selected)}</h2>
-              <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-[var(--on-surface-variant)]">
-                <span className="h-2 w-2 rounded-full bg-[var(--tertiary-fixed-dim)]" />
-                <span>
+              <div className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-[var(--on-surface-variant)]">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--tertiary-fixed-dim)]" />
+                <span className="truncate">
                   {selected?.booking ? `Lịch học: ${formatDateTime(selected.booking.startsAt)}` : "Tin nhắn cập nhật mỗi 5 giây"}
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 md:justify-end">
               {selected?.booking ? (
-                <Link className="hidden items-center gap-3 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-4 py-2 lg:flex" href={selected?.booking ? `/bookings/${selected.booking.id}` : "/bookings"}>
-                  <span className="rounded-lg bg-[var(--primary-container)]/10 p-2 text-[var(--primary)]">
+                <Link className="flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-3 py-2" href={selected?.booking ? `/bookings/${selected.booking.id}` : "/bookings"}>
+                  <span className="shrink-0 rounded-lg bg-[var(--primary-container)]/10 p-2 text-[var(--primary)]">
                     <Icon className="text-[20px]" name="calendar_month" />
                   </span>
-                  <span>
-                    <span className="block text-xs font-bold text-[var(--on-surface-variant)]">Lịch học</span>
-                    <span className="block text-sm font-black">{formatConversationTime(selected.booking.startsAt)}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-bold text-[var(--on-surface-variant)]">Lịch học</span>
+                    <span className="block truncate text-sm font-black">{formatConversationTime(selected.booking.startsAt)}</span>
                   </span>
-                  <span className="rounded bg-[var(--primary)] px-3 py-1 text-xs font-bold text-white">Xem</span>
+                  <span className="shrink-0 rounded bg-[var(--primary)] px-3 py-1 text-xs font-bold text-white">Xem</span>
                 </Link>
               ) : null}
-              <button className="inline-flex items-center gap-2 rounded-xl border border-[var(--error)]/30 px-3 py-2 text-sm font-bold text-[var(--error)] hover:bg-[var(--error)]/5 disabled:opacity-50" disabled={!selectedId || actionBusyId === selectedId} onClick={handleHideConversation} type="button">
+              <button className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-[var(--error)]/30 px-3 py-2 text-sm font-bold text-[var(--error)] hover:bg-[var(--error)]/5 disabled:opacity-50" disabled={!selectedId || actionBusyId === selectedId} onClick={handleHideConversation} type="button">
                 <Icon name="delete" />
-                Xóa hội thoại
+                <span className="hidden sm:inline">Xóa hội thoại</span>
               </button>
             </div>
           </header>

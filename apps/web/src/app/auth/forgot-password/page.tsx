@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { AuthLogo } from "@/components/auth-logo";
 import { forgotPassword } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
@@ -27,8 +28,11 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f9f9ff] px-5 text-[#111c2d]">
-      <section className="w-full max-w-md rounded-xl border border-[#c1c7d1] bg-white p-6 shadow-sm">
+    <main className="min-h-screen bg-[#f9f9ff] px-5 text-[#111c2d]">
+      <header className="mx-auto flex h-20 w-full max-w-7xl items-center">
+        <AuthLogo />
+      </header>
+      <section className="mx-auto mt-10 w-full max-w-md rounded-xl border border-[#c1c7d1] bg-white p-6 shadow-sm">
         <Link className="mb-6 inline-flex text-sm font-semibold text-[#004271]" href="/auth/login">
           Quay lại đăng nhập
         </Link>

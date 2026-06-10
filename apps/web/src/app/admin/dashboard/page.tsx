@@ -95,7 +95,7 @@ export default function AdminDashboardPage() {
                             <p className="truncate text-xs text-[var(--on-surface-variant)]">{tutor.email}</p>
                           </div>
                         </div>
-                        <span className="rounded-full bg-[var(--secondary-fixed)] px-2 py-1 text-xs font-bold text-[var(--secondary)]">{tutor.documentCount} docs</span>
+                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--secondary-fixed)] px-2 py-1 text-xs font-bold leading-none text-[var(--secondary)]">{tutor.documentCount} docs</span>
                       </Link>
                     ))
                   ) : (
@@ -153,7 +153,7 @@ function Panel({ actionHref, actionLabel, children, title }: { actionHref: strin
 
 function PaymentBadge({ status }: { status: AdminPayment["status"] }) {
   const label = status === "PAID" ? "Paid" : status === "REFUNDED" ? "Refund" : status === "PENDING" ? "Pending" : status;
-  return <span className="rounded-full bg-[var(--surface-container-high)] px-2 py-1 text-xs font-bold text-[var(--primary)]">{label}</span>;
+  return <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--surface-container-high)] px-2 py-1 text-xs font-bold leading-none text-[var(--primary)]">{label}</span>;
 }
 
 function Empty({ text }: { text: string }) {

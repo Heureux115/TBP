@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { RoleDashboardShell } from "@/components/layouts/role-dashboard-shell";
 import { getCurrentUser, PublicUser } from "@/lib/api";
 import { clearTokens, getAccessToken } from "@/lib/auth-storage";
@@ -411,11 +411,11 @@ function AvailabilityManager({
         </label>
         <label className="flex flex-col gap-1 text-xs font-bold uppercase text-[var(--on-surface-variant)]">
           Bắt đầu
-          <input className="rounded-lg border border-[var(--outline-variant)] bg-[var(--surface)] px-3 py-2.5 text-sm font-semibold normal-case text-[var(--on-surface)]" onChange={(event) => onStartChange(event.target.value)} type="time" value={start} />
+          <TimeSelect onChange={onStartChange} value={start} />
         </label>
         <label className="flex flex-col gap-1 text-xs font-bold uppercase text-[var(--on-surface-variant)]">
           Kết thúc
-          <input className="rounded-lg border border-[var(--outline-variant)] bg-[var(--surface)] px-3 py-2.5 text-sm font-semibold normal-case text-[var(--on-surface)]" onChange={(event) => onEndChange(event.target.value)} type="time" value={end} />
+          <TimeSelect onChange={onEndChange} value={end} />
         </label>
         <label className="flex flex-col gap-1 text-xs font-bold uppercase text-[var(--on-surface-variant)]">
           Lặp lại
@@ -460,12 +460,12 @@ function AvailabilitySlotCard({ busy, onDelete, slot }: { busy: boolean; onDelet
         <p className="mt-1 text-sm font-semibold text-[var(--on-surface)]">
           {start.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {end.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
         </p>
-        <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-black ${booked ? "bg-[var(--secondary-fixed)] text-[var(--secondary)]" : "bg-[var(--tertiary-fixed)] text-[var(--on-tertiary-fixed)]"}`}>
+        <span className={`mt-2 inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-1 text-xs font-black leading-none ${booked ? "bg-[var(--secondary-fixed)] text-[var(--secondary)]" : "bg-[var(--tertiary-fixed)] text-[var(--on-tertiary-fixed)]"}`}>
           {booked ? "Đã có học viên đặt" : "Đang mở"}
         </span>
       </div>
       <button
-        className="rounded-lg border border-[var(--error)]/30 px-3 py-2 text-sm font-black text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="whitespace-nowrap rounded-lg border border-[var(--error)]/30 px-3 py-2 text-sm font-black text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-50"
         disabled={busy}
         onClick={() => {
           if (booked && !window.confirm("Lịch này đã có học viên đặt. Xóa lịch sẽ hủy booking và cập nhật thanh toán liên quan. Tiếp tục?")) {
@@ -571,13 +571,13 @@ function StudentBookingCard({ booking, busy, onCancel, onMessage, onPay, payment
           <div className="min-w-0">
             <h3 className="truncate text-xl font-black">{booking.tutor.fullName}</h3>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-[var(--primary)]/10 px-2 py-1 text-xs font-black uppercase text-[var(--primary)]">{bookingSubject(booking)}</span>
-              <span className="rounded-full bg-[var(--surface-container-high)] px-2 py-1 text-xs font-black uppercase text-[var(--on-surface-variant)]">{modeLabel(booking.teachingMode)}</span>
+              <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--primary)]/10 px-2 py-1 text-xs font-black uppercase leading-none text-[var(--primary)]">{bookingSubject(booking)}</span>
+              <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--surface-container-high)] px-2 py-1 text-xs font-black uppercase leading-none text-[var(--on-surface-variant)]">{modeLabel(booking.teachingMode)}</span>
               <span className="flex items-center text-sm font-bold text-[var(--secondary)]"><Icon className="text-sm" fill name="star" /> Tutor</span>
             </div>
           </div>
         </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-black ${statusClasses[booking.status]}`}>{statusLabels[booking.status]}</span>
+        <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-black leading-none ${statusClasses[booking.status]}`}>{statusLabels[booking.status]}</span>
       </div>
       <div className="grid grid-cols-1 gap-4 border-y border-[var(--outline-variant)]/50 py-4 sm:grid-cols-2">
         <InfoLine icon="calendar_month" label="Ngày giờ" value={`${formatDate(booking.startsAt)} · ${formatTimeRange(booking)}`} />
@@ -642,10 +642,115 @@ function DateBlock({ value }: { value: string }) {
   );
 }
 
+function TimeSelect({ onChange, value }: { onChange: (value: string) => void; value: string }) {
+  const [rawHours = "00", rawMinutes = "00"] = value.split(":");
+  const hours = clampNumber(Number(rawHours), 0, 23);
+  const minutes = clampNumber(Number(rawMinutes), 0, 59);
+
+  function commit(nextHours: number, nextMinutes: number) {
+    onChange(`${String(clampNumber(nextHours, 0, 23)).padStart(2, "0")}:${String(clampNumber(nextMinutes, 0, 59)).padStart(2, "0")}`);
+  }
+
+  function updatePart(part: "hour" | "minute", rawValue: string) {
+    const digits = rawValue.replace(/\D/g, "").slice(-2);
+    const nextValue = Number(digits || 0);
+    if (part === "hour") {
+      commit(nextValue, minutes);
+    } else {
+      commit(hours, nextValue);
+    }
+  }
+
+  function step(part: "hour" | "minute", direction: 1 | -1) {
+    if (part === "hour") {
+      commit((hours + direction + 24) % 24, minutes);
+      return;
+    }
+    commit(hours, (minutes + direction + 60) % 60);
+  }
+
+  function handleKeyDown(part: "hour" | "minute", event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      step(part, 1);
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      step(part, -1);
+    }
+  }
+
+  return (
+    <div className="grid h-[42px] w-full grid-cols-[1fr_auto_1fr] items-center gap-1 rounded-lg border border-[var(--outline-variant)] bg-[var(--surface)] px-2 focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/15">
+      <TimePartInput
+        label="Giờ"
+        onChange={(nextValue) => updatePart("hour", nextValue)}
+        onDecrement={() => step("hour", -1)}
+        onIncrement={() => step("hour", 1)}
+        onKeyDown={(event) => handleKeyDown("hour", event)}
+        value={String(hours).padStart(2, "0")}
+      />
+      <span className="text-center text-base font-black text-[var(--on-surface-variant)]">:</span>
+      <TimePartInput
+        label="Phút"
+        onChange={(nextValue) => updatePart("minute", nextValue)}
+        onDecrement={() => step("minute", -1)}
+        onIncrement={() => step("minute", 1)}
+        onKeyDown={(event) => handleKeyDown("minute", event)}
+        value={String(minutes).padStart(2, "0")}
+      />
+    </div>
+  );
+}
+
+function TimePartInput({
+  label,
+  onChange,
+  onDecrement,
+  onIncrement,
+  onKeyDown,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  onDecrement: () => void;
+  onIncrement: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center justify-center gap-1">
+      <input
+        aria-label={label}
+        className="h-8 w-10 rounded border-0 bg-white text-center text-sm font-black tabular-nums text-[var(--on-surface)] outline-none focus:ring-0"
+        inputMode="numeric"
+        maxLength={2}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={(event) => event.target.select()}
+        onKeyDown={onKeyDown}
+        value={value}
+      />
+      <div className="flex flex-col">
+        <button aria-label={`Tăng ${label.toLowerCase()}`} className="flex h-4 w-5 items-center justify-center rounded text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" onClick={onIncrement} type="button">
+          <Icon className="text-[16px] leading-none" name="keyboard_arrow_up" />
+        </button>
+        <button aria-label={`Giảm ${label.toLowerCase()}`} className="flex h-4 w-5 items-center justify-center rounded text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" onClick={onDecrement} type="button">
+          <Icon className="text-[16px] leading-none" name="keyboard_arrow_down" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
 function StatusBadge({ payment, status }: { payment?: Payment; status: BookingStatus }) {
   const paid = payment?.status === "PAID";
   const label = paid ? "Đã xác nhận thanh toán" : statusLabels[status];
-  return <span className={`rounded-full px-3 py-1 text-xs font-black ${paid ? "bg-[var(--tertiary-fixed)] text-[var(--on-tertiary-fixed)]" : statusClasses[status]}`}>{label}</span>;
+  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-black leading-none ${paid ? "bg-[var(--tertiary-fixed)] text-[var(--on-tertiary-fixed)]" : statusClasses[status]}`}>{label}</span>;
 }
 
 function InfoLine({ icon, label, tone = "primary", value }: { icon: string; label: string; tone?: "primary" | "tertiary" | "secondary"; value: string }) {
@@ -659,9 +764,12 @@ function InfoLine({ icon, label, tone = "primary", value }: { icon: string; labe
 }
 
 function Avatar({ name, small = false, src }: { name: string; small?: boolean; src?: string | null }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const initial = name.trim().charAt(0).toUpperCase() || "U";
   const size = small ? "h-10 w-10 text-sm" : "h-14 w-14 text-xl";
-  return <div className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-fixed)] font-black text-[var(--primary)]`}>{src ? <img alt={name} className="h-full w-full object-cover" src={src} /> : initial}</div>;
+  const showImage = Boolean(src) && !imageFailed;
+
+  return <div className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-fixed)] font-black text-[var(--primary)]`}>{showImage ? <img alt={name} className="h-full w-full object-cover" onError={() => setImageFailed(true)} src={src || ""} /> : initial}</div>;
 }
 
 function EmptyState({ text }: { text: string }) {

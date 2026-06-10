@@ -11,13 +11,6 @@ import { createPayment, getMyPayments, mockConfirmPayment, Payment } from "@/lib
 import { createDispute } from "@/lib/dispute-api";
 import { useHasMounted } from "@/lib/use-has-mounted";
 
-const statusLabels: Record<BookingStatus, string> = {
-  PENDING: "Đã yêu cầu",
-  CONFIRMED: "Đã xác nhận",
-  CANCELLED: "Đã hủy",
-  COMPLETED: "Hoàn thành",
-};
-
 function Icon({ name, fill = false, className = "" }: { name: string; fill?: boolean; className?: string }) {
   return <span className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>{name}</span>;
 }
@@ -299,7 +292,7 @@ export function BookingDetailScreen({ id }: { id: string }) {
           <section className="flex flex-col gap-6 lg:col-span-8">
             <GlassCard>
               <h2 className="mb-6 flex items-center gap-2 text-xl font-black"><Icon className="text-[var(--primary)]" name="timeline" />Trạng thái lịch học</h2>
-              <Timeline status={booking.status} paid={paid} />
+              <Timeline payment={payment} status={booking.status} />
             </GlassCard>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -402,31 +395,56 @@ export function BookingDetailScreen({ id }: { id: string }) {
   );
 }
 
-function Timeline({ paid, status }: { paid: boolean; status: BookingStatus }) {
+function Timeline({ payment, status }: { payment: Payment | Booking["payment"] | null; status: BookingStatus }) {
   const cancelled = status === "CANCELLED";
   const completed = status === "COMPLETED";
-  const steps = [
-    { label: "Đã yêu cầu", done: true, note: "Đã tạo" },
-    { label: "Thanh toán", done: paid, note: paid ? "Đã thanh toán" : "Chờ xử lý" },
-    { label: cancelled ? "Đã hủy" : "Đã lên lịch", done: status === "CONFIRMED" || completed, note: statusLabels[status] },
-    { label: "Hoàn thành", done: completed, note: completed ? "Hoàn thành" : "--" },
-  ];
+  const confirmed = status === "CONFIRMED" || completed;
+  const paid = payment?.status === "PAID" || payment?.status === "REFUNDED";
+  const refunded = payment?.status === "REFUNDED";
+
+  const steps = cancelled
+    ? [
+        { label: "Đã yêu cầu", done: true, note: "Đã tạo", tone: "primary" as const },
+        { label: "Đã hủy", done: true, note: "Lịch học đã hủy", tone: "error" as const },
+        {
+          label: refunded ? "Đã hoàn tiền" : paid ? "Chờ hoàn tiền" : "Thanh toán",
+          done: refunded || !paid,
+          note: refunded ? "Tiền đã hoàn lại" : paid ? "Cần xử lý hoàn tiền" : "Không phát sinh thanh toán",
+          tone: refunded ? ("primary" as const) : paid ? ("warning" as const) : ("muted" as const),
+        },
+      ]
+    : [
+        { label: "Đã yêu cầu", done: true, note: "Đã tạo", tone: "primary" as const },
+        { label: "Đã xác nhận", done: confirmed, note: confirmed ? "Gia sư đã xác nhận" : "Chờ gia sư", tone: "primary" as const },
+        { label: "Thanh toán", done: paid, note: paid ? "Đã thanh toán" : "Chờ thanh toán", tone: "primary" as const },
+        { label: "Hoàn thành", done: completed, note: completed ? "Hoàn thành" : "--", tone: "primary" as const },
+      ];
+
+  const completedSegments = Math.max(0, steps.filter((step) => step.done).length - 1);
+  const progressWidth = steps.length > 1 ? String((completedSegments / (steps.length - 1)) * 100) + "%" : "0%";
 
   return (
-    <div className="relative flex items-start justify-between">
+    <div className="relative flex items-start justify-between gap-3">
       <div className="absolute left-0 top-5 h-0.5 w-full bg-[var(--outline-variant)]" />
-      <div className="absolute left-0 top-5 h-0.5 bg-[var(--primary)]" style={{ width: `${Math.max(0, steps.filter((step) => step.done).length - 1) * 33}%` }} />
-      {steps.map((step) => (
-        <div className="relative z-10 flex w-1/4 flex-col items-center gap-2" key={step.label}>
-          <div className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm ${step.done ? "bg-[var(--primary)] text-white" : "bg-[var(--surface-container-highest)] text-[var(--on-surface-variant)]"}`}>
-            <Icon name={step.done ? "check" : "hourglass_empty"} />
+      <div className={["absolute left-0 top-5 h-0.5", cancelled ? "bg-[var(--error)]" : "bg-[var(--primary)]"].join(" ")} style={{ width: progressWidth }} />
+      {steps.map((step) => {
+        const activeClass = step.tone === "error" ? "bg-[var(--error)] text-white" : step.tone === "warning" ? "bg-[var(--secondary)] text-white" : step.tone === "muted" ? "bg-[var(--surface-container-highest)] text-[var(--on-surface-variant)]" : "bg-[var(--primary)] text-white";
+        const inactiveClass = "bg-[var(--surface-container-highest)] text-[var(--on-surface-variant)]";
+        const textClass = step.tone === "error" ? "text-[var(--error)]" : step.tone === "warning" ? "text-[var(--secondary)]" : step.done && step.tone !== "muted" ? "text-[var(--primary)]" : "";
+        const icon = step.tone === "error" ? "cancel" : step.done ? "check" : "hourglass_empty";
+
+        return (
+          <div className="relative z-10 flex min-w-0 flex-1 flex-col items-center gap-2" key={step.label}>
+            <div className={["flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-sm", step.done ? activeClass : inactiveClass].join(" ")}>
+              <Icon name={icon} />
+            </div>
+            <div className="min-w-0 text-center">
+              <p className={["break-words text-sm font-black", textClass].join(" ")}>{step.label}</p>
+              <p className="break-words text-xs text-[var(--on-surface-variant)]">{step.note}</p>
+            </div>
           </div>
-          <div className="text-center">
-            <p className={`text-sm font-black ${step.done ? "text-[var(--primary)]" : ""}`}>{step.label}</p>
-            <p className="text-xs text-[var(--on-surface-variant)]">{step.note}</p>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { getCurrentUser, PublicUser } from "@/lib/api";
 import { clearTokens, getAccessToken } from "@/lib/auth-storage";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { getMyTutorProfile } from "@/lib/tutor-api";
 
 export function LandingHeader() {
@@ -38,13 +40,13 @@ export function LandingHeader() {
       })
   }, []);
 
+  const dashboardHref = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN" ? "/admin/dashboard" : user?.role === "TUTOR" ? "/tutor/dashboard" : "/dashboard";
+
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-[#c1c7d1] bg-white/95 shadow-sm backdrop-blur">
       <div className="flex h-20 w-full items-center justify-between px-5 sm:px-8 lg:px-12 2xl:px-16">
         <div className="flex items-center gap-6">
-          <Link className="text-2xl font-bold text-[#004271]" href="/">
-            TutorConnect
-          </Link>
+          <BrandLogo />
         </div>
 
         <nav className="hidden items-center gap-4 md:flex">
@@ -71,23 +73,17 @@ export function LandingHeader() {
         <div className="flex min-w-32 items-center justify-end gap-3">
           {sessionState === "user" && user ? (
             <>
-              <button
-                aria-label="Thông báo"
-                className="hidden h-10 w-10 items-center justify-center rounded-full text-[#414750] transition hover:bg-[#dee8ff] hover:text-[#004271] md:inline-flex"
-                type="button"
-              >
-                <span className="material-symbols-outlined" aria-hidden="true">notifications</span>
-              </button>
-              <button
+              <NotificationBell buttonClassName="relative hidden h-10 w-10 items-center justify-center rounded-full text-[#414750] transition hover:bg-[#dee8ff] hover:text-[#004271] md:inline-flex" />
+              <Link
                 aria-label="Tin nhắn"
                 className="hidden h-10 w-10 items-center justify-center rounded-full text-[#414750] transition hover:bg-[#dee8ff] hover:text-[#004271] md:inline-flex"
-                type="button"
+                href="/messages"
               >
                 <span className="material-symbols-outlined" aria-hidden="true">chat</span>
-              </button>
+              </Link>
               <Link
                 className="flex items-center gap-2 rounded-full border border-[#c1c7d1] bg-white p-1 pr-3 transition hover:bg-[#f0f3ff]"
-                href="/dashboard"
+                href={dashboardHref}
               >
                 {avatarUrl ? (
                   <img alt={user.fullName} className="h-9 w-9 rounded-full object-cover" src={avatarUrl} />

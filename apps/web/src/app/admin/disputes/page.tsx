@@ -146,11 +146,11 @@ export default function AdminDisputesPage() {
                     <td className="px-5 py-4 text-sm">{date(dispute.createdAt)}</td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
-                        {dispute.status === "OPEN" ? <button className="rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-xs font-bold text-[var(--primary)] disabled:opacity-60" disabled={busyId === dispute.id} onClick={() => handleAction(dispute, "review")} type="button">Xem xét</button> : null}
+                        {dispute.status === "OPEN" ? <button className="whitespace-nowrap rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-xs font-bold text-[var(--primary)] disabled:opacity-60" disabled={busyId === dispute.id} onClick={() => handleAction(dispute, "review")} type="button">Xem xét</button> : null}
                         {(dispute.status === "OPEN" || dispute.status === "UNDER_REVIEW") ? (
                           <>
-                            <button className="rounded-lg bg-[var(--primary)] px-3 py-2 text-xs font-bold text-white disabled:opacity-60" disabled={busyId === dispute.id} onClick={() => handleAction(dispute, "refund")} type="button">Hoàn tiền</button>
-                            <button className="rounded-lg border border-[var(--error)]/30 px-3 py-2 text-xs font-bold text-[var(--error)] disabled:opacity-60" disabled={busyId === dispute.id} onClick={() => handleAction(dispute, "reject")} type="button">Từ chối</button>
+                            <button className="whitespace-nowrap rounded-lg bg-[var(--primary)] px-3 py-2 text-xs font-bold text-white disabled:opacity-60" disabled={busyId === dispute.id} onClick={() => handleAction(dispute, "refund")} type="button">Hoàn tiền</button>
+                            <button className="whitespace-nowrap rounded-lg border border-[var(--error)]/30 px-3 py-2 text-xs font-bold text-[var(--error)] disabled:opacity-60" disabled={busyId === dispute.id} onClick={() => handleAction(dispute, "reject")} type="button">Từ chối</button>
                           </>
                         ) : null}
                       </div>
@@ -195,5 +195,5 @@ function User({ email, name }: { email: string; name: string }) {
 function DisputeBadge({ status }: { status: AdminDisputeStatus }) {
   const label = status === "OPEN" ? "Mới mở" : status === "UNDER_REVIEW" ? "Đang xem xét" : status === "RESOLVED_REFUNDED" ? "Đã hoàn tiền" : "Từ chối";
   const color = status === "RESOLVED_REFUNDED" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "REJECTED" ? "text-[var(--error)] bg-[var(--error-container)]" : "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${color}`}>{label}</span>;
+  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{label}</span>;
 }

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { getCurrentUser, type PublicUser } from "@/lib/api";
 import { clearTokens, getAccessToken } from "@/lib/auth-storage";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { getMyTutorProfile } from "@/lib/tutor-api";
 
 export function PublicShell({ children }: { children: ReactNode }) {
@@ -46,9 +48,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
       <header className="fixed inset-x-0 top-0 z-50 border-b border-[var(--outline-variant)] bg-white/95 shadow-sm backdrop-blur">
         <div className="flex h-20 w-full items-center justify-between px-5 sm:px-8 lg:px-12 2xl:px-16">
           <div className="flex items-center gap-6">
-            <Link className="text-2xl font-black text-[var(--primary)]" href="/">
-              TutorConnect
-            </Link>
+            <BrandLogo className="text-[var(--primary)]" />
             <Link className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-[var(--primary)] transition hover:bg-[var(--surface-container-high)] md:inline-flex" href="/tutors">
               Tìm gia sư
             </Link>
@@ -63,9 +63,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
                 <Link className="rounded-full p-2 text-[var(--on-surface-variant)] transition hover:bg-[var(--surface-container-high)] hover:text-[var(--primary)]" href="/messages" aria-label="Tin nhắn">
                   <Icon name="chat" />
                 </Link>
-                <Link className="rounded-full p-2 text-[var(--on-surface-variant)] transition hover:bg-[var(--surface-container-high)] hover:text-[var(--primary)]" href="/payments" aria-label="Thông báo thanh toán">
-                  <Icon name="notifications" />
-                </Link>
+                <NotificationBell />
                 <Link className="flex items-center gap-2 rounded-full border border-[var(--outline-variant)] bg-white p-1 pr-3 transition hover:bg-[var(--surface-container-low)]" href={dashboardHref}>
                   <Avatar name={user.fullName} src={avatarUrl} />
                   <span className="hidden max-w-32 truncate text-sm font-semibold text-[var(--on-surface)] lg:inline">{user.fullName}</span>
@@ -113,10 +111,13 @@ export function PublicShell({ children }: { children: ReactNode }) {
 }
 
 function Avatar({ name, src }: { name: string; src?: string | null }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const initial = name.trim().charAt(0).toUpperCase() || "U";
+  const showImage = Boolean(src) && !imageFailed;
+
   return (
     <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-fixed)] text-sm font-bold text-[var(--primary)]">
-      {src ? <img alt={name} className="h-full w-full object-cover" src={src} /> : initial}
+      {showImage ? <img alt={name} className="h-full w-full object-cover" onError={() => setImageFailed(true)} src={src || ""} /> : initial}
     </span>
   );
 }

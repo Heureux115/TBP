@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChangeEvent, ClipboardEvent, FormEvent, Suspense, useMemo, useRef, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { resendVerification, verifyEmail } from "@/lib/api";
 
 function VerifyEmailContent() {
@@ -82,9 +83,7 @@ function VerifyEmailContent() {
     <main className="flex min-h-screen flex-col bg-[#f9f9ff] text-[#111c2d]">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-[#c1c7d1] bg-white shadow-sm">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-10">
-          <Link className="text-2xl font-bold text-[#004271]" href="/">
-            TutorConnect
-          </Link>
+          <BrandLogo />
           <div className="flex items-center gap-3">
             <Link className="rounded-lg px-4 py-2 text-sm font-semibold text-[#004271] hover:bg-[#dee8ff]" href="/auth/login">
               Đăng nhập

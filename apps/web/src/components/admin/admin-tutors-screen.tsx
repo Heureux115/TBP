@@ -112,7 +112,7 @@ export function AdminTutorsScreen({ initialState }: { initialState: ScreenState 
                     <td className="px-5 py-4 text-sm font-bold">{row.documentCount}</td>
                     <td className="px-5 py-4 text-sm">{date(row.submittedAt)}</td>
                     <td className="px-5 py-4"><Status status={row.status} /></td>
-                    <td className="px-5 py-4 text-right"><Link className="rounded-lg border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)]" href={`/admin/tutors/${row.id}`}>Chi tiết</Link></td>
+                    <td className="px-5 py-4 text-right"><Link className="inline-flex whitespace-nowrap rounded-lg border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)]" href={`/admin/tutors/${row.id}`}>Chi tiết</Link></td>
                   </tr>
                 )) : (
                   <tr><td className="px-5 py-10 text-center text-sm text-[var(--on-surface-variant)]" colSpan={7}>Không có hồ sơ phù hợp.</td></tr>
@@ -133,5 +133,5 @@ function Metric({ icon, label, tone = "primary", value }: { icon: string; label:
 
 function Status({ status }: { status: TutorVerificationStatus }) {
   const color = status === "APPROVED" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "REJECTED" ? "text-[var(--error)] bg-[var(--error-container)]" : status === "PENDING_REVIEW" ? "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40" : "text-[var(--on-surface-variant)] bg-[var(--surface-container-high)]";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${color}`}>{labels[status]}</span>;
+  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{labels[status]}</span>;
 }

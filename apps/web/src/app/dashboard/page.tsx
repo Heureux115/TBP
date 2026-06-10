@@ -457,11 +457,14 @@ function ProgressRow({ label, value, color }: { label: string; value: number; co
 }
 
 function Avatar({ name, src, size = "md" }: { name: string; src?: string | null; size?: "md" | "lg" }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const dimension = size === "lg" ? "h-16 w-16" : "h-10 w-10";
   const initial = name.trim().charAt(0).toUpperCase() || "U";
+  const showImage = Boolean(src) && !imageFailed;
+
   return (
     <div className={`${dimension} flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-fixed)] font-bold text-[var(--primary)]`}>
-      {src ? <img alt={name} className="h-full w-full object-cover" src={src} /> : initial}
+      {showImage ? <img alt={name} className="h-full w-full object-cover" onError={() => setImageFailed(true)} src={src || ""} /> : initial}
     </div>
   );
 }
