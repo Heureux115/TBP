@@ -77,7 +77,7 @@ export function TutorProfileScreen({ initialStatus }: { initialStatus: TutorVeri
         {status === "DRAFT" ? (
           <DraftPanel completion={completion} />
         ) : (
-          <StatusBanner status={status} />
+          <StatusBanner profileId={profile?.id} status={status} />
         )}
 
         {status === "DRAFT" ? (
@@ -106,7 +106,7 @@ export function TutorProfileScreen({ initialStatus }: { initialStatus: TutorVeri
   );
 }
 
-function StatusBanner({ status }: { status: TutorVerificationStatus }) {
+function StatusBanner({ profileId, status }: { profileId?: string; status: TutorVerificationStatus }) {
   const copy = statusCopy[status];
 
   return (
@@ -138,10 +138,13 @@ function StatusBanner({ status }: { status: TutorVerificationStatus }) {
               Gửi lại hồ sơ
             </button>
           ) : null}
-          {status === "APPROVED" ? (
-            <button className="rounded-lg bg-[var(--primary)] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[var(--primary-container)]" type="button">
+          {status === "APPROVED" && profileId ? (
+            <Link
+              className="rounded-lg bg-[var(--primary)] px-5 py-3 text-center text-sm font-bold text-white shadow-sm hover:bg-[var(--primary-container)]"
+              href={`/tutors/${profileId}`}
+            >
               Xem hồ sơ công khai
-            </button>
+            </Link>
           ) : null}
         </div>
       </div>
@@ -212,15 +215,17 @@ function DraftEmptyCards() {
 }
 
 function IdentityCard({ profile, status }: { profile: TutorProfile; status: TutorVerificationStatus }) {
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const color = status === "REJECTED" ? "bg-[var(--error)]" : status === "APPROVED" ? "bg-[var(--tertiary)]" : "bg-[var(--secondary)]";
   const location = [profile.locationDistrict, profile.locationCity].filter(Boolean).join(", ") || "Chưa cập nhật";
   const initial = profile.fullName.trim().charAt(0).toUpperCase() || "G";
+  const showAvatar = Boolean(profile.avatarUrl) && !avatarFailed;
 
   return (
     <div className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 text-center shadow-sm">
       <div className="relative mx-auto mb-4 h-32 w-32">
         <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--surface)] bg-[var(--surface-container-highest)] text-5xl font-bold text-[var(--primary)]">
-          {profile.avatarUrl ? <img alt={profile.fullName} className="h-full w-full object-cover" src={profile.avatarUrl} /> : initial}
+          {showAvatar ? <img alt={profile.fullName} className="h-full w-full object-cover" onError={() => setAvatarFailed(true)} src={profile.avatarUrl || ""} /> : initial}
         </div>
         <div className={`absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-white ${color}`}>
           <Icon name={status === "APPROVED" ? "verified" : status === "REJECTED" ? "priority_high" : "hourglass_empty"} fill className="text-[16px]" />
@@ -276,13 +281,13 @@ function StatsGrid({ profile }: { profile: TutorProfile }) {
   return (
     <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {stats.map(([icon, label, value]) => (
-        <div className="flex items-center gap-3 rounded-xl border border-[var(--outline-variant)] bg-white p-4 shadow-sm" key={label}>
+        <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--outline-variant)] bg-white p-4 shadow-sm" key={label}>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary-fixed)] text-[var(--primary)]">
             <Icon name={icon} />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-medium text-[var(--on-surface-variant)]">{label}</p>
-            <p className="text-base font-semibold">{value}</p>
+            <p className="break-words text-base font-semibold">{value}</p>
           </div>
         </div>
       ))}
@@ -339,11 +344,11 @@ function DocumentsCard({ documents, status }: { documents: TutorDocument[]; stat
             key={doc.id}
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="flex gap-3">
-                <Icon name={doc.type.includes("ID") ? "badge" : "history_edu"} className={doc.status === "REJECTED" ? "text-[var(--error)]" : "text-[var(--primary)]"} />
-                <div>
+              <div className="flex min-w-0 gap-3">
+                <Icon name={doc.type.includes("ID") ? "badge" : "history_edu"} className={`shrink-0 ${doc.status === "REJECTED" ? "text-[var(--error)]" : "text-[var(--primary)]"}`} />
+                <div className="min-w-0">
                   <h4 className="text-sm font-bold">{documentLabel(doc.type)}</h4>
-                  <p className="mt-1 text-xs text-[var(--on-surface-variant)]">{doc.fileName}</p>
+                  <p className="mt-1 break-all text-xs text-[var(--on-surface-variant)]">{doc.fileName}</p>
                 </div>
               </div>
               <Icon name={doc.status === "REJECTED" ? "error" : doc.status === "APPROVED" ? "check_circle" : "hourglass_empty"} fill={doc.status !== "PENDING"} className={doc.status === "REJECTED" ? "text-[var(--error)]" : "text-[var(--tertiary)]"} />
@@ -370,9 +375,9 @@ function DocumentsCard({ documents, status }: { documents: TutorDocument[]; stat
 
 function InfoLine({ icon, text }: { icon: string; text: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <Icon name={icon} className="text-[20px] text-[var(--outline)]" />
-      <span>{text}</span>
+    <div className="flex min-w-0 items-start gap-2">
+      <Icon name={icon} className="shrink-0 text-[20px] text-[var(--outline)]" />
+      <span className="min-w-0 break-all">{text}</span>
     </div>
   );
 }

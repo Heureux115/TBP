@@ -79,7 +79,6 @@ export class AuthService {
       throw new ConflictException('phone already exists');
     }
 
-    const verification = this.createEmailOtp();
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_COST);
 
     const user = await this.prisma.user.create({
@@ -89,21 +88,16 @@ export class AuthService {
         fullName: dto.fullName.trim(),
         phone: dto.phone,
         role,
-        status: UserStatus.PENDING_EMAIL_VERIFICATION,
-        emailVerificationTokenHash: this.hashToken(verification.otp),
-        emailVerificationTokenExpiresAt: verification.expiresAt,
+        status: UserStatus.ACTIVE,
+        emailVerifiedAt: new Date(),
+        emailVerificationTokenHash: null,
+        emailVerificationTokenExpiresAt: null,
       },
-    });
-
-    await this.emailService.sendVerificationOtp({
-      to: user.email,
-      fullName: user.fullName,
-      otp: verification.otp,
     });
 
     return {
       user: this.toPublicUser(user),
-      message: 'Verification code sent to email.',
+      message: 'Account created.',
     };
   }
 

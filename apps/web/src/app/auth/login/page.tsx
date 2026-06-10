@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { AuthLogo } from "@/components/auth-logo";
 import { login } from "@/lib/api";
 import { saveTokens } from "@/lib/auth-storage";
 
 const loginImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDMCVcf2J_CqR-dNOOkE3kyrqPQiKftnK6zsGKlXicNCv2T52oHkg7P_rRvCC_TdrpXdstsFR6-o8PICRYYBUEzOESQZUAUlZx9ivYR0tQDxVOFPxtJCFnWzmfoyPceHdEmu15pWWWbiGKoHdqvbnGlbDZZDMzsuFZ9YLY_bxPl6r8UQZFHT1c3fa3YViC2xAazXRo5qwMsv7VC_7quL9lIoMVDzx6E3LStkGK1rgXBO3h_Oq6wwBB8_MA4H0H8owVEPJWn9-ED5qU";
+  "/login.png";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -54,9 +55,7 @@ export default function LoginPage() {
     <main className="min-h-screen bg-[#f9f9ff] text-[#111c2d]">
       <header className="fixed inset-x-0 top-0 z-50 flex h-20 items-center border-b border-[#c1c7d1] bg-white px-5 shadow-sm sm:px-8 lg:px-10">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between">
-          <Link className="text-2xl font-bold text-[#004271]" href="/">
-            TutorConnect
-          </Link>
+          <AuthLogo />
           <Link
             className="rounded-lg border border-[#004271] px-4 py-2 text-sm font-semibold text-[#004271] transition hover:bg-[#d1e4ff]"
             href="/register"

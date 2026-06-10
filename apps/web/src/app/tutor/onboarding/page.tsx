@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { getAccessToken } from "@/lib/auth-storage";
 import {
   getMyTutorProfile,
@@ -316,9 +317,7 @@ export default function TutorOnboardingPage() {
     <main className="min-h-screen bg-[var(--surface)] text-[var(--on-surface)]">
       <header className="fixed inset-x-0 top-0 z-50 h-20 border-b border-[var(--outline-variant)] bg-white shadow-sm">
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-10">
-          <Link className="text-2xl font-bold text-[var(--primary)]" href="/">
-            TutorConnect
-          </Link>
+          <BrandLogo className="text-[var(--primary)]" />
           <div className="flex items-center gap-3">
             <Link
               className="rounded-lg px-4 py-2 text-sm font-semibold text-[var(--primary)] transition hover:bg-[var(--surface-container-high)]"
@@ -955,22 +954,24 @@ function ReviewCard({
   title: string;
 }) {
   return (
-    <div className="relative rounded-lg border border-[var(--outline-variant)] bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <button className="text-sm font-semibold text-[var(--primary)] hover:underline" onClick={onEdit} type="button">
-          Chỉnh sửa
-        </button>
+    <div className="rounded-lg border border-[var(--outline-variant)] bg-white p-5 shadow-sm">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h3 className="min-w-0 text-lg font-semibold">{title}</h3>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <span
+            className={[
+              "rounded-full px-2.5 py-1 text-xs font-semibold leading-none",
+              complete ? "bg-[#6ffbbe]/30 text-[#004a31]" : "bg-[var(--error-container)] text-[var(--error)]",
+            ].join(" ")}
+          >
+            {complete ? "Hoàn thành" : "Cần bổ sung"}
+          </span>
+          <button className="text-sm font-semibold text-[var(--primary)] hover:underline" onClick={onEdit} type="button">
+            Chỉnh sửa
+          </button>
+        </div>
       </div>
       <div className="space-y-2 text-sm text-[var(--on-surface-variant)]">{children}</div>
-      <span
-        className={[
-          "absolute right-4 top-4 rounded-full px-2 py-0.5 text-xs font-semibold",
-          complete ? "bg-[#6ffbbe]/30 text-[#004a31]" : "bg-[var(--error-container)] text-[var(--error)]",
-        ].join(" ")}
-      >
-        {complete ? "Hoàn thành" : "Cần bổ sung"}
-      </span>
     </div>
   );
 }

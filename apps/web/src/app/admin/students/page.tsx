@@ -99,5 +99,5 @@ function Metric({ icon, label, tone = "primary", value }: { icon: string; label:
 }
 
 function Status({ status, verified }: { status: AdminUser["status"]; verified: boolean }) {
-  return <span className="rounded-full bg-[var(--surface-container-high)] px-3 py-1 text-xs font-bold text-[var(--primary)]">{status}{verified ? " / verified" : ""}</span>;
+  return <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--surface-container-high)] px-3 py-1 text-xs font-bold leading-none text-[var(--primary)]">{status}{verified ? " / verified" : ""}</span>;
 }

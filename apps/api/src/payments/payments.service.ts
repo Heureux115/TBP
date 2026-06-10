@@ -156,6 +156,8 @@ export class PaymentsService {
     }
 
     const canView =
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.SUPER_ADMIN ||
       payment.payerId === user.id ||
       payment.booking.tutorProfile.userId === user.id;
 

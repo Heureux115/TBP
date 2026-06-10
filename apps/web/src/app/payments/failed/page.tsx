@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { getAccessToken } from "@/lib/auth-storage";
 import { getPayment, Payment } from "@/lib/payment-api";
 import { useHasMounted } from "@/lib/use-has-mounted";
@@ -36,7 +37,7 @@ export default function PaymentFailedPage() {
   return (
     <main className="min-h-screen bg-[var(--surface)] pt-20 text-[var(--on-surface)]">
       <header className="fixed left-0 top-0 z-50 flex h-20 w-full items-center justify-between border-b border-[var(--outline-variant)] bg-white px-5 shadow-sm md:px-10">
-        <Link className="text-2xl font-black text-[var(--primary)]" href="/">TutorConnect</Link>
+        <BrandLogo className="text-[var(--primary)]" />
         <Link className="rounded-full p-2 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" href="/messages" aria-label="Hỗ trợ">
           <Icon name="help" />
         </Link>

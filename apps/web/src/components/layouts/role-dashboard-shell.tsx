@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { getCurrentUser, type PublicUser } from "@/lib/api";
 import { clearTokens, getAccessToken } from "@/lib/auth-storage";
 import { getMyNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "@/lib/notification-api";
@@ -157,12 +158,14 @@ export function RoleDashboardShell({
     }
   }
 
-  async function handleToggleNotifications() {
-    const nextOpen = !notificationsOpen;
-    setNotificationsOpen(nextOpen);
-    if (nextOpen) {
-      await refreshNotifications();
-    }
+  function handleToggleNotifications() {
+    setNotificationsOpen((currentOpen) => {
+      const nextOpen = !currentOpen;
+      if (nextOpen) {
+        void refreshNotifications();
+      }
+      return nextOpen;
+    });
   }
 
   async function handleReadNotification(item: NotificationItem) {
@@ -206,15 +209,12 @@ export function RoleDashboardShell({
     <div className="flex min-h-screen bg-[var(--surface)] text-[var(--on-surface)]">
       <aside className="sticky left-0 top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-4 py-6 md:flex">
         <div className="mb-9 flex items-center gap-3 px-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--primary)] text-white">
-            <Icon name={role === "admin" ? "admin_panel_settings" : "school"} />
-          </div>
-          <div className="min-w-0">
-            <Link className="block truncate text-xl font-black text-[var(--primary)]" href={role === "admin" ? "/admin/dashboard" : role === "tutor" ? "/tutor/dashboard" : "/dashboard"}>
-              {labels.title}
-            </Link>
-            <p className="text-xs font-semibold text-[var(--outline)]">{labels.subtitle}</p>
-          </div>
+          <BrandLogo
+            className="text-[var(--primary)]"
+            href={role === "admin" ? "/admin/dashboard" : role === "tutor" ? "/tutor/dashboard" : "/dashboard"}
+            label={labels.title}
+            subtitle={labels.subtitle}
+          />
         </div>
 
         <div className="mb-8 flex items-center gap-3 rounded-xl bg-white/60 p-3">
@@ -255,7 +255,7 @@ export function RoleDashboardShell({
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between bg-[var(--surface)] px-5 shadow-sm md:px-10">
           <div className="relative hidden w-full max-w-md sm:block">
             <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--outline)]" name="search" />
@@ -266,9 +266,11 @@ export function RoleDashboardShell({
             />
           </div>
           <div className="flex flex-1 items-center justify-between gap-3 sm:flex-none sm:justify-end">
-            <Link className="text-lg font-black text-[var(--primary)] md:hidden" href={role === "admin" ? "/admin/dashboard" : role === "tutor" ? "/tutor/dashboard" : "/dashboard"}>
-              {labels.title}
-            </Link>
+            <BrandLogo
+              className="text-[var(--primary)] md:hidden"
+              href={role === "admin" ? "/admin/dashboard" : role === "tutor" ? "/tutor/dashboard" : "/dashboard"}
+              label={labels.title}
+            />
             <div className="flex items-center gap-3">
               {role === "admin" ? (
                 <Link className="rounded-full p-2 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" href="/admin/tutors" aria-label="Duyệt hồ sơ">
@@ -280,7 +282,13 @@ export function RoleDashboardShell({
                 </Link>
               )}
               <div className="relative">
-                <button className="relative rounded-full p-2 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" type="button" aria-label="Thông báo" onClick={handleToggleNotifications}>
+                <button
+                  className="relative rounded-full p-2 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]"
+                  data-testid={`${role}-notifications-button`}
+                  type="button"
+                  aria-label="Thông báo"
+                  onClick={handleToggleNotifications}
+                >
                   <Icon name="notifications" />
                   {unreadNotifications ? (
                     <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--error)] px-1 text-[10px] font-black leading-none text-white">
@@ -289,7 +297,10 @@ export function RoleDashboardShell({
                   ) : null}
                 </button>
                 {notificationsOpen ? (
-                  <section className="absolute right-0 top-12 z-50 w-[min(92vw,380px)] overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white shadow-xl">
+                  <section
+                    className="absolute right-0 top-12 z-50 w-[min(92vw,380px)] overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white shadow-xl"
+                    data-testid={`${role}-notifications-panel`}
+                  >
                     <div className="flex items-center justify-between border-b border-[var(--outline-variant)] px-4 py-3">
                       <div>
                         <h2 className="text-sm font-black text-[var(--on-surface)]">Thông báo</h2>
@@ -338,6 +349,28 @@ export function RoleDashboardShell({
         </header>
         {children}
       </main>
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--outline-variant)] bg-white/95 px-2 py-2 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
+          {navItems.slice(0, 5).map((item) => {
+            const isActive = active === item.key || (active === "approvals" && item.key === "tutors");
+
+            return (
+              <Link
+                aria-current={isActive ? "page" : undefined}
+                className={[
+                  "flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-black leading-tight transition",
+                  isActive ? "bg-[var(--primary)] text-white" : "text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--primary)]",
+                ].join(" ")}
+                href={item.href}
+                key={item.key}
+              >
+                <Icon className="text-[20px]" fill={isActive} name={item.icon} />
+                <span className="w-full text-center">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
@@ -387,10 +420,13 @@ export function Icon({ name, fill = false, className = "" }: { name: string; fil
 }
 
 export function Avatar({ name, src, className = "" }: { name: string; src?: string | null; className?: string }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const initial = name.trim().charAt(0).toUpperCase() || "U";
+  const showImage = Boolean(src) && !imageFailed;
+
   return (
     <div className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-fixed)] text-sm font-black text-[var(--primary)] ${className}`}>
-      {src ? <img alt={name} className="h-full w-full object-cover" src={src} /> : initial}
+      {showImage ? <img alt={name} className="h-full w-full object-cover" onError={() => setImageFailed(true)} src={src || ""} /> : initial}
     </div>
   );
 }

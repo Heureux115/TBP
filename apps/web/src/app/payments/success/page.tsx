@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { getAccessToken } from "@/lib/auth-storage";
 import { getPayment, Payment } from "@/lib/payment-api";
 import { useHasMounted } from "@/lib/use-has-mounted";
@@ -51,7 +52,7 @@ export default function PaymentSuccessPage() {
   return (
     <main className="relative flex min-h-screen flex-col overflow-hidden bg-[var(--surface)] text-[var(--on-surface)]">
       <header className="z-10 flex h-20 items-center px-5 md:px-10">
-        <Link className="text-2xl font-black text-[var(--primary)]" href="/">TutorConnect</Link>
+        <BrandLogo className="text-[var(--primary)]" />
       </header>
       <section className="z-10 flex flex-1 items-center justify-center px-5 py-12">
         <div className="w-full max-w-[620px] rounded-xl border border-[var(--outline-variant)] bg-white p-8 text-center shadow-lg">

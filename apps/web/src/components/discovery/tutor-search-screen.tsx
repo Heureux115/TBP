@@ -358,13 +358,15 @@ function FilterPanel({
 }
 
 function TutorCard({ tutor, image }: { tutor: PublicTutorCard; image: string }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const location = [tutor.locationDistrict, tutor.locationCity].filter(Boolean).join(", ") || "Chưa cập nhật";
+  const imageSrc = !imageFailed && tutor.avatarUrl ? tutor.avatarUrl : image;
 
   return (
     <article className="group overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white/90 p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-[var(--surface-container-high)] shadow-sm sm:h-32 sm:w-32">
-          <img alt={tutor.fullName} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" src={tutor.avatarUrl || image} />
+          <img alt={tutor.fullName} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" onError={() => setImageFailed(true)} src={imageSrc} />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex items-start justify-between gap-3">

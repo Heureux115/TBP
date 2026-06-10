@@ -125,7 +125,7 @@ export default function AdminBookingsPage() {
                     <td className="px-5 py-4"><p className="text-sm font-bold">{date(booking.startsAt)}</p><p className="text-xs text-[var(--on-surface-variant)]">{timeRange(booking)}</p></td>
                     <td className="px-5 py-4"><PaymentText booking={booking} /></td>
                     <td className="px-5 py-4"><BookingBadge status={booking.status} /></td>
-                    <td className="px-5 py-4 text-right"><Link className="rounded-lg border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)]" href={`/admin/bookings?bookingId=${booking.id}`}>Xem trong admin</Link></td>
+                    <td className="px-5 py-4 text-right"><Link className="inline-flex whitespace-nowrap rounded-lg border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)]" href={`/admin/bookings?bookingId=${booking.id}`}>Xem trong admin</Link></td>
                   </tr>
                 )) : (
                   <tr><td className="px-5 py-10 text-center text-sm text-[var(--on-surface-variant)]" colSpan={7}>Không có booking phù hợp.</td></tr>
@@ -151,7 +151,7 @@ function User({ email, name }: { email: string; name: string }) {
 function BookingBadge({ status }: { status: AdminBookingStatus }) {
   const label = status === "PENDING" ? "Chờ gia sư" : status === "CONFIRMED" ? "Đã xác nhận" : status === "COMPLETED" ? "Hoàn thành" : "Đã hủy";
   const color = status === "CANCELLED" ? "text-[var(--error)] bg-[var(--error-container)]" : status === "COMPLETED" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : "text-[var(--primary)] bg-[var(--primary-fixed)]/40";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${color}`}>{label}</span>;
+  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{label}</span>;
 }
 
 function PaymentText({ booking }: { booking: AdminBooking }) {

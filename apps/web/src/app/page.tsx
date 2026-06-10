@@ -7,7 +7,7 @@ const studentAvatars = [
 ];
 
 const heroImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDKPiaahkmChpMULSQYMFcmdW5et3WPVTEhD7KiyFGnJVW_vaVSa1Yz7q1SCA5r4_UCghTl6DeFrIX5TzSzbjFz8TJ4RGhcQIX5MAcEILPjI-iXBsGKVyxxB0jhIp8Vcy8NGf0YH9FdvEEqqz50jucIwrCFuLe4XsmumAbJD0vgwt4j2Yls_ZcakZWZ-FP1mYob9LmzIJz_MIMlm4VOMEcDltAJa6vR3FF32Br0FRClha5TzQasyiJgbUHVDiqK-SsXoI2A1Nnz3Rc";
+  "/landding.png";
 
 export default function Home() {
   return (

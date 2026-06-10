@@ -135,7 +135,7 @@ export function AdminTutorDetailScreen({ initialStatus, tutorId }: { initialStat
                           <p className="font-bold">{document.type}</p>
                           <p className="mt-1 text-xs text-[var(--on-surface-variant)]">{document.fileName}</p>
                         </div>
-                        <span className="rounded-full bg-[var(--surface-container-high)] px-2 py-1 text-xs font-bold">{document.status}</span>
+                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--surface-container-high)] px-2 py-1 text-xs font-bold leading-none">{document.status}</span>
                       </div>
                       <a className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)]" href={document.filePath} rel="noreferrer" target="_blank">
                         <Icon name="visibility" />
@@ -189,5 +189,5 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function Status({ status }: { status: TutorVerificationStatus }) {
   const color = status === "APPROVED" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "REJECTED" ? "text-[var(--error)] bg-[var(--error-container)]" : "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40";
-  return <span className={`w-fit rounded-full px-4 py-2 text-sm font-bold ${color}`}>{statusLabels[status]}</span>;
+  return <span className={`inline-flex w-fit shrink-0 items-center whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold leading-none ${color}`}>{statusLabels[status]}</span>;
 }
