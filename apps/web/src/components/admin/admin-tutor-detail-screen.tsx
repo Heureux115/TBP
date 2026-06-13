@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AdminLayout, Icon } from "@/components/admin/admin-layout";
+import { AdminLayout } from "@/components/admin/admin-layout";
+import { AdminAlert, AdminPage, AdminPageHeader, TutorStatusBadge } from "@/components/admin/admin-ui";
+import { Button, Card, CardDescription, CardHeader, CardTitle, ConfirmDialog, FeedbackState, Icon, Skeleton, StatusBadge } from "@/components/ui";
 import { getAccessToken } from "@/lib/auth-storage";
 import { approveTutor, getAdminTutor, rejectTutor, type TutorProfile, type TutorVerificationStatus } from "@/lib/tutor-api";
 
 const statusLabels: Record<TutorVerificationStatus, string> = {
-  DRAFT: "Draft",
-  PENDING_REVIEW: "Chờ duyệt",
   APPROVED: "Đã duyệt",
-  REJECTED: "Bị từ chối",
+  DRAFT: "Bản nháp",
+  PENDING_REVIEW: "Chờ duyệt",
+  REJECTED: "Từ chối",
 };
 
 function money(value: string | null) {
@@ -24,6 +26,7 @@ export function AdminTutorDetailScreen({ initialStatus, tutorId }: { initialStat
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"approve" | "reject" | null>(null);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -48,7 +51,8 @@ export function AdminTutorDetailScreen({ initialStatus, tutorId }: { initialStat
       const result = await approveTutor(token, tutorId);
       setProfile(result);
       setStatus(result.verificationStatus);
-      setMessage("Hồ sơ đã được duyệt.");
+      setMessage("Hồ sơ đã được duyệt và có thể xuất hiện trong marketplace.");
+      setPendingAction(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể duyệt hồ sơ.");
     } finally {
@@ -67,6 +71,7 @@ export function AdminTutorDetailScreen({ initialStatus, tutorId }: { initialStat
       setProfile(result);
       setStatus(result.verificationStatus);
       setMessage("Hồ sơ đã bị từ chối và lý do đã được lưu.");
+      setPendingAction(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể từ chối hồ sơ.");
     } finally {
@@ -76,28 +81,33 @@ export function AdminTutorDetailScreen({ initialStatus, tutorId }: { initialStat
 
   return (
     <AdminLayout active="tutors" searchPlaceholder="Tìm hồ sơ gia sư...">
-      <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-5 py-8 md:px-10">
-        <header className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div>
-            <Link className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)]" href="/admin/tutors">
-              <Icon name="arrow_back" />
-              Quay lại danh sách
-            </Link>
-            <h1 className="text-3xl font-black text-[var(--primary)]">Chi tiết hồ sơ gia sư</h1>
-            <p className="mt-1 text-sm text-[var(--on-surface-variant)]">Kiểm tra thông tin, tài liệu và duyệt hồ sơ.</p>
-          </div>
-          <Status status={status} />
-        </header>
+      <AdminPage>
+        <AdminPageHeader
+          actions={<TutorStatusBadge status={status} />}
+          description="Kiểm tra thông tin cá nhân, hồ sơ giảng dạy, tài liệu xác minh và quyết định duyệt hoặc từ chối."
+          title="Chi tiết hồ sơ gia sư"
+        />
 
-        {error ? <p className="rounded-lg bg-[var(--error-container)] p-3 text-sm font-semibold text-[var(--error)]">{error}</p> : null}
-        {message ? <p className="rounded-lg bg-[var(--tertiary-fixed)]/30 p-3 text-sm font-semibold text-[var(--tertiary)]">{message}</p> : null}
+        <Link className="inline-flex w-fit items-center gap-1 text-sm font-bold text-[var(--primary)] hover:underline" href="/admin/tutors">
+          <Icon name="arrow_back" />
+          Quay lại danh sách
+        </Link>
+
+        {error ? <AdminAlert>{error}</AdminAlert> : null}
+        {message ? <AdminAlert tone="success">{message}</AdminAlert> : null}
 
         {!profile ? (
-          <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-8 text-sm text-[var(--on-surface-variant)]">Đang tải hồ sơ...</section>
+          <DetailSkeleton />
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <section className="space-y-6 lg:col-span-2">
-              <Card title="Thông tin cá nhân" icon="person">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <section className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <div>
+                    <CardTitle>Thông tin cá nhân</CardTitle>
+                    <CardDescription>Dữ liệu định danh cơ bản của gia sư.</CardDescription>
+                  </div>
+                </CardHeader>
                 <div className="grid gap-4 md:grid-cols-2">
                   <Info label="Họ tên" value={profile.fullName} />
                   <Info label="Email" value={profile.email} />
@@ -106,8 +116,14 @@ export function AdminTutorDetailScreen({ initialStatus, tutorId }: { initialStat
                 </div>
               </Card>
 
-              <Card title="Hồ sơ giảng dạy" icon="school">
-                <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <div>
+                    <CardTitle>Hồ sơ giảng dạy</CardTitle>
+                    <CardDescription>Thông tin phụ huynh/học viên sẽ dùng để ra quyết định đặt lịch.</CardDescription>
+                  </div>
+                </CardHeader>
+                <div className="space-y-5">
                   <Info label="Tiêu đề" value={profile.headline || "-"} />
                   <Info label="Giới thiệu" value={profile.bio || "-"} />
                   <div className="grid gap-4 md:grid-cols-3">
@@ -116,55 +132,80 @@ export function AdminTutorDetailScreen({ initialStatus, tutorId }: { initialStat
                     <Info label="Hình thức" value={profile.teachingMode} />
                   </div>
                   <div>
-                    <p className="mb-2 text-xs font-bold uppercase text-[var(--on-surface-variant)]">Môn học</p>
+                    <p className="mb-2 text-xs font-black uppercase tracking-wide text-[var(--on-surface-variant)]">Môn học</p>
                     <div className="flex flex-wrap gap-2">
                       {profile.subjects.length ? profile.subjects.map((item) => (
-                        <span className="rounded-full bg-[var(--surface-container-high)] px-3 py-1 text-sm font-bold" key={item.id}>{item.subject.name} · {item.level}</span>
-                      )) : <span className="text-sm text-[var(--on-surface-variant)]">Chưa có môn học</span>}
+                        <StatusBadge dot={false} key={item.id} tone="neutral">{item.subject.name} · {item.level}</StatusBadge>
+                      )) : <span className="text-sm font-semibold text-[var(--on-surface-variant)]">Chưa có môn học</span>}
                     </div>
                   </div>
                 </div>
               </Card>
 
-              <Card title="Tài liệu xác minh" icon="description">
-                <div className="grid gap-4 md:grid-cols-2">
-                  {profile.documents.length ? profile.documents.map((document) => (
-                    <article className="rounded-lg border border-[var(--outline-variant)] p-4" key={document.id}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-bold">{document.type}</p>
-                          <p className="mt-1 text-xs text-[var(--on-surface-variant)]">{document.fileName}</p>
+              <Card>
+                <CardHeader>
+                  <div>
+                    <CardTitle>Tài liệu xác minh</CardTitle>
+                    <CardDescription>Admin cần mở file thật trước khi duyệt hồ sơ.</CardDescription>
+                  </div>
+                </CardHeader>
+                {profile.documents.length ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {profile.documents.map((document) => (
+                      <article className="rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-4" key={document.id}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-black">{document.type}</p>
+                            <p className="mt-1 truncate text-xs font-semibold text-[var(--on-surface-variant)]">{document.fileName}</p>
+                          </div>
+                          <StatusBadge dot={false} tone="neutral">{document.status}</StatusBadge>
                         </div>
-                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--surface-container-high)] px-2 py-1 text-xs font-bold leading-none">{document.status}</span>
-                      </div>
-                      <a className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)]" href={document.filePath} rel="noreferrer" target="_blank">
-                        <Icon name="visibility" />
-                        Xem file
-                      </a>
-                    </article>
-                  )) : <p className="text-sm text-[var(--on-surface-variant)]">Chưa có tài liệu.</p>}
-                </div>
+                        <a className="mt-4 inline-flex min-h-11 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--primary)] px-3 py-2 text-sm font-bold text-[var(--primary)] hover:bg-[var(--surface-container-low)]" href={document.filePath} rel="noreferrer" target="_blank">
+                          <Icon name="visibility" />
+                          Xem file
+                        </a>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <FeedbackState className="min-h-[220px]" description="Gia sư chưa tải tài liệu xác minh. Không nên duyệt hồ sơ khi thiếu bằng chứng." title="Chưa có tài liệu" />
+                )}
               </Card>
             </section>
 
-            <aside className="space-y-6">
-              <Card title="Quyết định duyệt" icon="rule">
+            <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+              <Card tone="warning">
+                <CardHeader>
+                  <div>
+                    <CardTitle>Quyết định duyệt</CardTitle>
+                    <CardDescription>Duyệt sẽ công khai gia sư; từ chối sẽ lưu lý do để gia sư chỉnh sửa.</CardDescription>
+                  </div>
+                </CardHeader>
                 <div className="space-y-4">
-                  <p className="text-sm text-[var(--on-surface-variant)]">Duyệt hồ sơ sẽ công khai gia sư trên trang tìm kiếm. Từ chối sẽ lưu lý do để gia sư chỉnh sửa.</p>
-                  <button className="w-full rounded-lg bg-[var(--primary)] px-4 py-3 text-sm font-bold text-white disabled:opacity-60" disabled={busy || status === "APPROVED"} onClick={handleApprove} type="button">
+                  <Button className="w-full" disabled={busy || status === "APPROVED"} onClick={() => setPendingAction("approve")}>
                     Duyệt hồ sơ
-                  </button>
+                  </Button>
                   <label className="block">
-                    <span className="mb-1 block text-xs font-bold text-[var(--on-surface-variant)]">Lý do từ chối</span>
-                    <textarea className="min-h-28 w-full rounded-lg border border-[var(--outline-variant)] p-3 text-sm outline-none focus:border-[var(--primary)]" onChange={(event) => setReason(event.target.value)} value={reason} />
+                    <span className="mb-1.5 block text-xs font-bold text-[var(--on-surface-variant)]">Lý do từ chối</span>
+                    <textarea
+                      className="min-h-28 w-full rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-white p-3 text-sm leading-6 outline-none transition focus:border-[var(--primary)] focus:shadow-[var(--focus-ring)]"
+                      onChange={(event) => setReason(event.target.value)}
+                      value={reason}
+                    />
                   </label>
-                  <button className="w-full rounded-lg border border-[var(--error)] px-4 py-3 text-sm font-bold text-[var(--error)] disabled:opacity-60" disabled={busy || !reason.trim()} onClick={handleReject} type="button">
+                  <Button className="w-full" disabled={busy || !reason.trim()} onClick={() => setPendingAction("reject")} variant="danger">
                     Từ chối hồ sơ
-                  </button>
+                  </Button>
                 </div>
               </Card>
 
-              <Card title="Tóm tắt" icon="analytics">
+              <Card>
+                <CardHeader>
+                  <div>
+                    <CardTitle>Tóm tắt</CardTitle>
+                    <CardDescription>Thông tin ra quyết định nhanh.</CardDescription>
+                  </div>
+                </CardHeader>
                 <div className="space-y-3 text-sm">
                   <Info label="Trạng thái" value={statusLabels[status]} />
                   <Info label="Số môn" value={String(profile.subjects.length)} />
@@ -174,20 +215,40 @@ export function AdminTutorDetailScreen({ initialStatus, tutorId }: { initialStat
             </aside>
           </div>
         )}
-      </main>
+
+        <ConfirmDialog
+          confirmLabel={pendingAction === "approve" ? "Duyệt hồ sơ" : "Từ chối hồ sơ"}
+          description={pendingAction === "approve" ? "Gia sư sẽ đủ điều kiện xuất hiện trong trang tìm kiếm theo logic hiện tại." : "Lý do từ chối hiện tại sẽ được lưu cho hồ sơ gia sư."}
+          isBusy={busy}
+          onCancel={() => setPendingAction(null)}
+          onConfirm={pendingAction === "approve" ? handleApprove : handleReject}
+          open={Boolean(pendingAction)}
+          title={pendingAction === "approve" ? "Duyệt hồ sơ gia sư này?" : "Từ chối hồ sơ gia sư này?"}
+          tone={pendingAction === "approve" ? "primary" : "danger"}
+        />
+      </AdminPage>
     </AdminLayout>
   );
 }
 
-function Card({ children, icon, title }: { children: React.ReactNode; icon: string; title: string }) {
-  return <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-5 shadow-sm"><h2 className="mb-4 flex items-center gap-2 text-lg font-black"><Icon className="text-[var(--primary)]" name={icon} />{title}</h2>{children}</section>;
-}
-
 function Info({ label, value }: { label: string; value: string }) {
-  return <div><p className="text-xs font-bold uppercase text-[var(--on-surface-variant)]">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div>;
+  return (
+    <div>
+      <p className="text-xs font-black uppercase tracking-wide text-[var(--on-surface-variant)]">{label}</p>
+      <p className="mt-1 text-sm font-semibold leading-6 text-[var(--on-surface)]">{value}</p>
+    </div>
+  );
 }
 
-function Status({ status }: { status: TutorVerificationStatus }) {
-  const color = status === "APPROVED" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "REJECTED" ? "text-[var(--error)] bg-[var(--error-container)]" : "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40";
-  return <span className={`inline-flex w-fit shrink-0 items-center whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold leading-none ${color}`}>{statusLabels[status]}</span>;
+function DetailSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="space-y-6">
+        <Skeleton className="h-48 rounded-[var(--radius-lg)]" />
+        <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
+        <Skeleton className="h-48 rounded-[var(--radius-lg)]" />
+      </div>
+      <Skeleton className="h-80 rounded-[var(--radius-lg)]" />
+    </div>
+  );
 }

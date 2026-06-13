@@ -300,6 +300,8 @@ async function seedTutor(
     },
   });
 
+  await resetTutorRuntimeData(prisma, profile.id);
+
   await prisma.tutorSubject.deleteMany({
     where: { tutorProfileId: profile.id },
   });
@@ -360,6 +362,7 @@ async function seedTutor(
   if (isApproved) {
     const start = weekStart();
     const hours = [8, 10, 14, 19, 20];
+    const minBookableStart = new Date(Date.now() + 60 * 60 * 1000);
 
     for (let day = 0; day < 7; day += 1) {
       for (const hour of hours) {
@@ -368,6 +371,9 @@ async function seedTutor(
         }
 
         const startsAt = slotDate(start, day, hour);
+        if (startsAt <= minBookableStart) {
+          continue;
+        }
 
         await prisma.availabilitySlot.create({
           data: {
@@ -382,6 +388,46 @@ async function seedTutor(
   }
 
   return profile.id;
+}
+
+async function resetTutorRuntimeData(prisma: PrismaClient, tutorProfileId: string) {
+  await prisma.dispute.deleteMany({
+    where: {
+      booking: {
+        tutorProfileId,
+      },
+    },
+  });
+
+  await prisma.review.deleteMany({
+    where: { tutorProfileId },
+  });
+
+  await prisma.payment.deleteMany({
+    where: {
+      booking: {
+        tutorProfileId,
+      },
+    },
+  });
+
+  await prisma.booking.deleteMany({
+    where: { tutorProfileId },
+  });
+
+  const wallet = await prisma.tutorWallet.findUnique({
+    where: { tutorProfileId },
+    select: { id: true },
+  });
+
+  if (wallet) {
+    await prisma.withdrawal.deleteMany({
+      where: { walletId: wallet.id },
+    });
+    await prisma.tutorWallet.delete({
+      where: { id: wallet.id },
+    });
+  }
 }
 
 async function main() {

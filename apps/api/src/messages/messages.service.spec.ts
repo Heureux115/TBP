@@ -117,4 +117,66 @@ describe('MessagesService', () => {
     expect(result[0].id).toBe(conversationWithMessage.id);
     expect(result[0].lastMessage?.body).toBe('Hello');
   });
+
+  it('hides the conversation and deletes all existing messages for the requester only', async () => {
+    const tx = {
+      conversationParticipant: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+      message: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'message-1' }, { id: 'message-2' }]),
+      },
+      messageDeletion: {
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const prisma = {
+      conversationParticipant: {
+        findUnique: jest.fn().mockResolvedValue({ conversationId: 'conversation-1', userId: student.id }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const service = new MessagesService(prisma as any);
+
+    const result = await service.hideConversation(student as any, 'conversation-1');
+
+    expect(result).toEqual({ hidden: true });
+    expect(tx.conversationParticipant.update).toHaveBeenCalledWith({
+      where: {
+        conversationId_userId: {
+          conversationId: 'conversation-1',
+          userId: student.id,
+        },
+      },
+      data: { hiddenAt: expect.any(Date) },
+    });
+    expect(tx.message.findMany).toHaveBeenCalledWith({
+      where: {
+        conversationId: 'conversation-1',
+        deletedAt: null,
+        deletions: {
+          none: {
+            userId: student.id,
+          },
+        },
+      },
+      select: { id: true },
+    });
+    expect(tx.messageDeletion.upsert).toHaveBeenCalledTimes(2);
+    expect(tx.messageDeletion.upsert).toHaveBeenCalledWith({
+      where: {
+        messageId_userId: {
+          messageId: 'message-1',
+          userId: student.id,
+        },
+      },
+      create: {
+        messageId: 'message-1',
+        userId: student.id,
+      },
+      update: {
+        deletedAt: expect.any(Date),
+      },
+    });
+  });
 });

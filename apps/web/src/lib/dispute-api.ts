@@ -30,3 +30,30 @@ export function createDispute(token: string, bookingId: string, reason: string) 
 export function getMyDisputes(token: string) {
   return request<AdminDispute[]>("/disputes/me", token);
 }
+
+export function getDispute(token: string, disputeId: string) {
+  return request<AdminDispute>(`/disputes/${disputeId}`, token);
+}
+
+export async function addDisputeMessage(token: string, disputeId: string, body: string, files: File[]) {
+  const headers = new Headers();
+  await applyAuthHeaders(headers, token, "POST");
+  const formData = new FormData();
+  formData.append("body", body);
+  files.forEach((file) => formData.append("files", file));
+
+  const response = await fetch(`${API_URL}/disputes/${disputeId}/messages`, {
+    method: "POST",
+    body: formData,
+    headers,
+    credentials: "include",
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = Array.isArray(payload?.message) ? payload.message.join(", ") : typeof payload?.message === "string" ? payload.message : "Request failed.";
+    throw new Error(message);
+  }
+
+  return payload as AdminDispute;
+}

@@ -33,6 +33,11 @@ import {
   SearchTutorsDto,
   TutorSearchSort,
 } from './dto/discovery/search-tutors.dto';
+import {
+  matchesSearchTokens,
+  normalizeSearchText,
+  searchTokens,
+} from '../common/search-text';
 
 const tutorProfileInclude = {
   user: true,
@@ -88,8 +93,39 @@ export class TutorsService {
   async searchPublicTutors(query: SearchTutorsDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 12;
-    const where = this.buildPublicTutorWhere(query);
+    const hasTextFilters = Boolean(
+      searchTokens(query.q).length ||
+        searchTokens(query.city).length ||
+        searchTokens(query.district).length,
+    );
+    const where = this.buildPublicTutorWhere(query, {
+      includeTextFilters: !hasTextFilters,
+    });
     const orderBy = this.buildPublicTutorOrderBy(query.sort);
+
+    if (hasTextFilters) {
+      const profiles = await this.prisma.tutorProfile.findMany({
+        where,
+        include: publicTutorInclude,
+        orderBy,
+      });
+      const filteredProfiles = this.filterPublicTutorsBySearchText(
+        profiles,
+        query,
+      );
+      const total = filteredProfiles.length;
+      const start = (page - 1) * pageSize;
+
+      return {
+        items: filteredProfiles
+          .slice(start, start + pageSize)
+          .map((profile) => this.serializePublicTutorCard(profile)),
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      };
+    }
 
     const [total, profiles] = await this.prisma.$transaction([
       this.prisma.tutorProfile.count({ where }),
@@ -294,7 +330,9 @@ export class TutorsService {
     });
 
     if (overlapping) {
-      throw new BadRequestException('availability slot overlaps existing slot');
+      throw new BadRequestException(
+        'Khung giờ này bị trùng với lịch rảnh đã có. Vui lòng chọn thời gian khác.',
+      );
     }
 
     const created = await this.prisma.$transaction(
@@ -704,8 +742,10 @@ export class TutorsService {
 
   private buildPublicTutorWhere(
     query: SearchTutorsDto,
+    options: { includeTextFilters?: boolean } = {},
   ): Prisma.TutorProfileWhereInput {
     const subjectFilters: Prisma.TutorSubjectWhereInput[] = [];
+    const includeTextFilters = options.includeTextFilters ?? true;
 
     if (query.subjectId) {
       subjectFilters.push({ subjectId: query.subjectId });
@@ -722,7 +762,7 @@ export class TutorsService {
         status: UserStatus.ACTIVE,
         deletedAt: null,
       },
-      ...(query.q
+      ...(includeTextFilters && query.q
         ? {
             OR: [
               { headline: { contains: query.q, mode: 'insensitive' } },
@@ -742,10 +782,10 @@ export class TutorsService {
             ],
           }
         : {}),
-      ...(query.city
+      ...(includeTextFilters && query.city
         ? { locationCity: { contains: query.city, mode: 'insensitive' } }
         : {}),
-      ...(query.district
+      ...(includeTextFilters && query.district
         ? {
             locationDistrict: {
               contains: query.district,
@@ -788,6 +828,97 @@ export class TutorsService {
     };
 
     return where;
+  }
+
+  private filterPublicTutorsBySearchText(
+    profiles: PublicTutorWithRelations[],
+    query: SearchTutorsDto,
+  ) {
+    const keywordTokens = searchTokens(query.q);
+    const cityTokens = searchTokens(query.city);
+    const districtTokens = searchTokens(query.district);
+    const shouldRank = (query.sort ?? TutorSearchSort.RELEVANCE) === TutorSearchSort.RELEVANCE;
+
+    const matched = profiles
+      .map((profile, index) => ({
+        index,
+        profile,
+        score: this.scorePublicTutorSearchMatch(profile, keywordTokens),
+      }))
+      .filter(({ profile }) => {
+        const searchText = this.buildPublicTutorSearchText(profile);
+        const locationText = [
+          profile.locationCity,
+          profile.locationDistrict,
+        ].filter(Boolean).join(' ');
+
+        return (
+          matchesSearchTokens(searchText, keywordTokens) &&
+          matchesSearchTokens(locationText, cityTokens) &&
+          matchesSearchTokens(locationText, districtTokens)
+        );
+      });
+
+    if (!shouldRank) {
+      return matched.map((item) => item.profile);
+    }
+
+    return matched
+      .sort((a, b) => b.score - a.score || a.index - b.index)
+      .map((item) => item.profile);
+  }
+
+  private buildPublicTutorSearchText(profile: PublicTutorWithRelations) {
+    return [
+      profile.user.fullName,
+      profile.headline,
+      profile.bio,
+      profile.locationCity,
+      profile.locationDistrict,
+      profile.teachingMode,
+      ...profile.subjects.flatMap((item) => [
+        item.subject.name,
+        item.subject.slug,
+        item.subject.category,
+        item.level,
+      ]),
+    ].filter(Boolean).join(' ');
+  }
+
+  private scorePublicTutorSearchMatch(
+    profile: PublicTutorWithRelations,
+    tokens: string[],
+  ) {
+    if (!tokens.length) return 0;
+
+    const weightedFields = [
+      { text: profile.user.fullName, weight: 8 },
+      { text: profile.headline, weight: 5 },
+      {
+        text: profile.subjects
+          .map((item) => `${item.subject.name} ${item.subject.slug}`)
+          .join(' '),
+        weight: 5,
+      },
+      {
+        text: [profile.locationDistrict, profile.locationCity]
+          .filter(Boolean)
+          .join(' '),
+        weight: 3,
+      },
+      { text: profile.bio, weight: 1 },
+    ];
+
+    return weightedFields.reduce((score, field) => {
+      const normalized = normalizeSearchText(field.text);
+      return (
+        score +
+        tokens.reduce((fieldScore, token) => {
+          if (!normalized.includes(token)) return fieldScore;
+          return fieldScore + (normalized.startsWith(token) ? field.weight + 2 : field.weight);
+        }, 0)
+      );
+    }, 0);
   }
 
   private buildPublicTutorOrderBy(

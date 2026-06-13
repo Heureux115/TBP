@@ -15,8 +15,14 @@ import {
   UserRole,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/types/auth.types';
+import {
+  ATTACHMENT_MAX_FILES,
+  MultipartFile,
+  saveUploadFile,
+} from '../common/file-storage';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AddDisputeMessageDto } from './dto/add-dispute-message.dto';
 import { CreateDisputeDto } from './dto/create-dispute.dto';
 
 const disputeInclude = {
@@ -29,6 +35,13 @@ const disputeInclude = {
     },
   },
   payment: true,
+  messages: {
+    include: {
+      author: true,
+      attachments: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  },
 } satisfies Prisma.DisputeInclude;
 
 type DisputeWithRelations = Prisma.DisputeGetPayload<{
@@ -83,6 +96,12 @@ export class DisputesService {
           paymentId: booking.payment!.id,
           openedById: user.id,
           reason: dto.reason.trim(),
+          messages: {
+            create: {
+              authorId: user.id,
+              body: dto.reason.trim(),
+            },
+          },
         },
         include: disputeInclude,
       });
@@ -129,6 +148,74 @@ export class DisputesService {
     });
 
     return disputes.map((dispute) => this.serialize(dispute));
+  }
+
+  async getMine(user: AuthenticatedUser, id: string) {
+    const dispute = await this.getDisputeOrThrow(id);
+    this.assertCanView(user, dispute);
+    return this.serialize(dispute);
+  }
+
+  async addMessage(
+    user: AuthenticatedUser,
+    id: string,
+    dto: AddDisputeMessageDto,
+    files: MultipartFile[] = [],
+  ) {
+    const dispute = await this.getDisputeOrThrow(id);
+    this.assertCanView(user, dispute);
+    this.assertOpen(dispute);
+
+    if (files.length > ATTACHMENT_MAX_FILES) {
+      throw new BadRequestException('too many attachments');
+    }
+
+    const attachments = await Promise.all(
+      files.map((file) => saveUploadFile(file, 'disputes')),
+    );
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.disputeMessage.create({
+        data: {
+          disputeId: id,
+          authorId: user.id,
+          body: dto.body.trim(),
+          attachments: attachments.length
+            ? {
+                create: attachments.map((attachment) => ({
+                  uploadedById: user.id,
+                  url: attachment.url,
+                  fileName: attachment.fileName,
+                  mimeType: attachment.mimeType,
+                  size: attachment.size,
+                  kind: attachment.kind,
+                })),
+              }
+            : undefined,
+        },
+      });
+
+      const saved = await tx.dispute.update({
+        where: { id },
+        data: { updatedAt: new Date() },
+        include: disputeInclude,
+      });
+
+      await this.notifyDisputeParticipants(
+        tx,
+        saved,
+        'Dispute có phản hồi mới',
+      );
+      await this.notifyAdmins(tx, {
+        title: 'Dispute có phản hồi mới',
+        body: `${user.email} đã bổ sung phản hồi cho dispute #${id.slice(0, 8)}.`,
+        actionUrl: '/admin/disputes',
+      });
+
+      return saved;
+    });
+
+    return this.serialize(updated);
   }
 
   async listAdmin() {
@@ -322,6 +409,17 @@ export class DisputesService {
     }
   }
 
+  private assertCanView(user: AuthenticatedUser, dispute: DisputeWithRelations) {
+    const isAdmin =
+      user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
+    const isStudent = dispute.booking.studentId === user.id;
+    const isTutor = dispute.booking.tutorProfile.userId === user.id;
+
+    if (!isAdmin && !isStudent && !isTutor) {
+      throw new ForbiddenException('dispute access denied');
+    }
+  }
+
   private async notifyAdmins(
     tx: Prisma.TransactionClient,
     payload: { title: string; body: string; actionUrl: string },
@@ -436,6 +534,26 @@ export class DisputesService {
         payoutStatus: dispute.payment.payoutStatus,
         refundedAt: dispute.payment.refundedAt?.toISOString() ?? null,
       },
+      messages: (dispute.messages ?? []).map((message) => ({
+        id: message.id,
+        body: message.body,
+        createdAt: message.createdAt.toISOString(),
+        author: {
+          id: message.author.id,
+          fullName: message.author.fullName,
+          email: message.author.email,
+          role: message.author.role,
+        },
+        attachments: (message.attachments ?? []).map((attachment) => ({
+          id: attachment.id,
+          url: attachment.url,
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType,
+          size: attachment.size,
+          kind: attachment.kind,
+          createdAt: attachment.createdAt.toISOString(),
+        })),
+      })),
     };
   }
 }

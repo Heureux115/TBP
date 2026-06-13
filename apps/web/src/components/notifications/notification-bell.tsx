@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type KeyboardEvent } from "react";
 import { getAccessToken } from "@/lib/auth-storage";
 import { getMyNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "@/lib/notification-api";
 
 function Icon({ name, fill = false, className = "" }: { name: string; fill?: boolean; className?: string }) {
-  return <span className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>{name}</span>;
+  return <span aria-hidden="true" className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>{name}</span>;
 }
 
 function formatNotificationTime(value: string) {
@@ -28,6 +28,7 @@ export function NotificationBell({
   testId?: string;
 }) {
   const router = useRouter();
+  const panelId = useId();
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
@@ -61,6 +62,13 @@ export function NotificationBell({
       if (next) void refreshNotifications();
       return next;
     });
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      setOpen(false);
+    }
   }
 
   async function handleReadNotification(item: NotificationItem) {
@@ -101,8 +109,8 @@ export function NotificationBell({
   }
 
   return (
-    <div className="relative">
-      <button aria-label="Thông báo" className={buttonClassName} data-testid={testId} onClick={handleToggle} type="button">
+    <div className="relative" onKeyDown={handleKeyDown}>
+      <button aria-controls={open ? panelId : undefined} aria-expanded={open} aria-label="Thông báo" className={buttonClassName} data-testid={testId} onClick={handleToggle} type="button">
         <Icon name="notifications" />
         {unreadCount ? (
           <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--error)] px-1 text-[10px] font-black leading-none text-white">
@@ -111,7 +119,7 @@ export function NotificationBell({
         ) : null}
       </button>
       {open ? (
-        <section className={panelClassName}>
+        <section aria-label="Thông báo" className={panelClassName} id={panelId}>
           <div className="flex items-center justify-between border-b border-[var(--outline-variant)] px-4 py-3">
             <div>
               <h2 className="text-sm font-black text-[var(--on-surface)]">Thông báo</h2>

@@ -7,10 +7,13 @@ const EMAIL_SEND_TIMEOUT_MS = 10000;
 @Injectable()
 export class EmailService {
   private readonly resend: Resend | null;
+  private readonly emailDevMode: boolean;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
     this.resend = apiKey ? new Resend(apiKey) : null;
+    this.emailDevMode =
+      this.configService.get<string>('EMAIL_DEV_MODE') === 'true';
   }
 
   async sendVerificationOtp(params: {
@@ -18,6 +21,11 @@ export class EmailService {
     fullName: string;
     otp: string;
   }) {
+    if (this.shouldPrintOtpInDev()) {
+      this.printDevOtp('Email verification', params);
+      return;
+    }
+
     if (!this.resend) {
       throw new ServiceUnavailableException('email provider is not configured');
     }
@@ -47,6 +55,11 @@ export class EmailService {
     fullName: string;
     otp: string;
   }) {
+    if (this.shouldPrintOtpInDev()) {
+      this.printDevOtp('Password reset', params);
+      return;
+    }
+
     if (!this.resend) {
       throw new ServiceUnavailableException('email provider is not configured');
     }
@@ -127,5 +140,25 @@ export class EmailService {
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#039;');
+  }
+
+  private shouldPrintOtpInDev() {
+    return (
+      this.emailDevMode &&
+      this.configService.get<string>('NODE_ENV') !== 'production'
+    );
+  }
+
+  private printDevOtp(
+    purpose: string,
+    params: {
+      to: string;
+      fullName: string;
+      otp: string;
+    },
+  ) {
+    console.info(
+      `[DEV EMAIL OTP] ${purpose} for ${params.to} (${params.fullName}): ${params.otp}`,
+    );
   }
 }

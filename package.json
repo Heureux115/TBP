@@ -10,6 +10,12 @@
     "dev:api": "npm --workspace apps/api run start:dev",
     "build": "npm --workspaces run build",
     "lint": "npm --workspaces run lint",
-    "test": "npm --workspaces run test"
+    "test": "npm --workspaces run test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "seed:e2e": "npm --workspace apps/api run seed:admin && npm --workspace apps/api run seed:test-data"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }

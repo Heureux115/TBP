@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { PublicShell, Icon } from "./public-shell";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { PublicShell } from "./public-shell";
 import type { BookingTeachingMode } from "@/lib/booking-api";
 import {
   getPublicTutor,
@@ -20,11 +20,9 @@ import {
 } from "@/lib/review-api";
 import { useAuthStore } from "@/lib/auth-store";
 import { useHasMounted } from "@/lib/use-has-mounted";
+import { Avatar, Badge, Button, Card, Dialog, FeedbackState, Icon, Skeleton, StatusBadge } from "@/components/ui";
 
 type DetailState = "loading" | "ready" | "not-found" | "error";
-
-const profileImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDI0zJSdYqsekNGFXWm73rG_kt28T6edrrERWh1TzUeLB_jnwUrQMrJ-ppCzBNUVVVEQw9eW95Mq-kIbEnNNMDs4wVD6rz_xFJ_R60paSjgJjgZAvQV5z0ncxcnpxS3qQW08aEdbs5JPhaH6zJwY3kZ65nKqsiapmpMoL088wdNY6PZCmRRWwOGWFAk8J4iAg6JtV2_lpFO-W6pWyvajv3wU_mYd_8AEAdS68qlJ-7fbyt6fXGbpWZpUk4s-f9aRQ-wg9X5wNVXwTo";
 
 function formatMoney(value: string | null) {
   const amount = Number(value || 0);
@@ -78,7 +76,7 @@ function addDays(date: Date, days: number) {
 export function TutorDetailScreen({ id }: { id: string }) {
   const hasMounted = useHasMounted();
   const [forcedState, setForcedState] = useState<DetailState | null>(null);
-  const [state, setState] = useState<DetailState>(forcedState && forcedState !== "ready" ? "loading" : "ready");
+  const [state, setState] = useState<DetailState>("loading");
   const [tutor, setTutor] = useState<PublicTutorDetail | null>(null);
   const [slots, setSlots] = useState<TutorAvailabilitySlot[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -243,7 +241,7 @@ export function TutorDetailScreen({ id }: { id: string }) {
   if (!hasMounted) {
     return (
       <PublicShell>
-        <main className="w-full px-5 pb-12 pt-28 sm:px-8 lg:px-12 2xl:px-16">
+        <main className="w-full px-4 pb-12 pt-28 sm:px-6 lg:px-8">
           <DetailSkeleton />
         </main>
       </PublicShell>
@@ -252,8 +250,8 @@ export function TutorDetailScreen({ id }: { id: string }) {
 
   return (
     <PublicShell>
-      <main className="w-full px-5 pb-12 pt-28 sm:px-8 lg:px-12 2xl:px-16">
-        <Link className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-[var(--on-surface-variant)] hover:text-[var(--primary)]" href="/tutors">
+      <main className="w-full px-4 pb-28 pt-28 sm:px-6 lg:px-8 lg:pb-12">
+        <Link className="mb-5 inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-md)] px-2 text-sm font-bold text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--primary)]" href="/tutors">
           <Icon className="text-[20px]" name="arrow_back" />
           Quay lại danh sách
         </Link>
@@ -264,289 +262,61 @@ export function TutorDetailScreen({ id }: { id: string }) {
           <StatePanel
             icon="person_off"
             title="Không tìm thấy gia sư"
-            message="Hồ sơ có thể chưa được duyệt, đã tạm ẩn hoặc đưđường dẫn không chính xác."
+            message="Hồ sơ có thể chưa được duyệt, đã tạm ẩn hoặc đường dẫn không chính xác."
           />
         ) : null}
 
         {effectiveState === "ready" && tutor ? (
           <>
-            <section className="mb-6 rounded-xl border border-[var(--outline-variant)] bg-white/90 p-6 shadow-sm">
-              <div className="flex flex-col gap-6 md:flex-row md:items-center">
-                <div className="relative shrink-0">
-                  <img
-                    alt={tutor.fullName}
-                    className="h-36 w-36 rounded-full border-4 border-[var(--surface-container-highest)] object-cover shadow-sm md:h-40 md:w-40"
-                    src={tutor.avatarUrl || profileImage}
-                  />
-                  <div className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[var(--primary-container)] text-white">
-                    <Icon className="text-[18px]" fill name="verified" />
-                  </div>
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-4xl font-bold tracking-tight text-[var(--primary)]">{tutor.fullName}</h1>
-                    <span className="rounded-full border border-[var(--primary-container)]/20 bg-[var(--primary-container)]/10 px-3 py-1 text-xs font-semibold text-[var(--primary-container)]">
-                      Đã xác thực
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xl font-semibold text-[var(--on-surface-variant)]">
-                    {tutor.headline || "Gia sư chuyên môn cao"}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-4 text-sm text-[var(--on-surface-variant)]">
-                    <span className="flex items-center gap-1 text-[var(--secondary)]">
-                      <Icon className="text-[18px]" fill name="star" />
-                      <strong>{Number(tutor.ratingAvg).toFixed(1)}</strong> ({tutor.totalSessions} buổi)
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Icon className="text-[18px]" name="location_on" />
-                      {location}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Icon className="text-[18px]" name="laptop_mac" />
-                      {teachingModeLabel(tutor.teachingMode)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="border-t border-[var(--outline-variant)] pt-5 md:border-l md:border-t-0 md:pl-6 md:pt-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--outline)]">Học phí</p>
-                  <p className="text-3xl font-bold text-[var(--primary)]">
-                    {formatMoney(tutor.hourlyRate)}
-                    <span className="text-sm font-normal text-[var(--outline)]">/giờ</span>
-                  </p>
-                  <div className="mt-4 flex gap-2">
-                    <button className="rounded-xl border border-[var(--outline-variant)] p-3 text-[var(--error)] transition hover:bg-[var(--surface-container)]" type="button">
-                      <Icon name="favorite" />
-                    </button>
-                    <button className="rounded-xl border border-[var(--outline-variant)] p-3 text-[var(--primary)] transition hover:bg-[var(--surface-container)]" type="button">
-                      <Icon name="mail" />
-                    </button>
-                    <a className="rounded-xl bg-[var(--secondary-container)] px-5 py-3 text-sm font-bold text-[var(--on-surface)] transition hover:opacity-90" href="#availability">
-                      Đặt lịch ngay
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </section>
+            <HeroProfile location={location} reviewCount={reviews.length} tutor={tutor} />
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-              <div className="space-y-6 lg:col-span-8">
-                <section className="rounded-xl border border-[var(--outline-variant)] bg-white/90 p-6 shadow-sm">
-                  <h2 className="mb-4 flex items-center gap-2 text-2xl font-semibold text-[var(--primary)]">
-                    <Icon name="person_book" />
-                    Giới thiệu bản thân
-                  </h2>
-                  <p className="whitespace-pre-line text-lg leading-8 text-[var(--on-surface-variant)]">
-                    {tutor.bio || tutor.bioExcerpt || "Gia sư chưa cập nhật phần giới thiệu chi tiết."}
-                  </p>
-                </section>
-
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <section className="rounded-xl border border-[var(--outline-variant)] bg-white/90 p-6 shadow-sm">
-                    <h2 className="mb-4 text-xl font-semibold text-[var(--primary)]">Môn học</h2>
-                    <div className="flex flex-wrap gap-2">
-                      {tutor.subjects.length ? (
-                        tutor.subjects.map((item) => (
-                          <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-high)] px-4 py-2 text-sm font-semibold" key={item.id}>
-                            {item.subject.name} ? {levelLabels[item.level] || item.level}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-sm text-[var(--on-surface-variant)]">Chưa cập nhật môn học.</span>
-                      )}
-                    </div>
-                  </section>
-
-                  <section className="rounded-xl border border-[var(--outline-variant)] bg-white/90 p-6 shadow-sm">
-                    <h2 className="mb-4 text-xl font-semibold text-[var(--primary)]">Kinh nghiệm</h2>
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[var(--primary-container)]/10 text-[var(--primary)]">
-                        <Icon className="text-[32px]" name="workspace_premium" />
-                      </div>
-                      <div>
-                        <p className="text-3xl font-bold">{tutor.experienceYears || 0} năm</p>
-                        <p className="text-sm text-[var(--outline)]">Kinh nghiệm giảng dạy</p>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-
-                <section className="rounded-xl border border-[var(--outline-variant)] bg-white/90 p-6 shadow-sm">
-                  <h2 className="mb-4 flex items-center gap-2 text-2xl font-semibold text-[var(--primary)]">
-                    <Icon name="verified_user" />
-                    Tài liệu đã xác minh
-                  </h2>
-                  <div className="space-y-3">
-                    {tutor.verifiedDocuments.length ? (
-                      tutor.verifiedDocuments.map((document) => (
-                        <div className="flex items-center gap-3 rounded-lg border border-[var(--outline-variant)]/40 bg-[var(--surface-container-low)] p-3" key={document.id}>
-                          <Icon className="text-[var(--tertiary)]" fill name="check_circle" />
-                          <div>
-                            <p className="font-semibold">{documentLabel(document.type)}</p>
-                            <p className="text-sm text-[var(--on-surface-variant)]">Đã được TutorConnect kiểm duyệt</p>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-[var(--on-surface-variant)]">Hồ sơ đã duyệt, tài liệu không hiển thị công khai.</p>
-                    )}
-                  </div>
-                </section>
-
-                <section className="rounded-xl border border-[var(--outline-variant)] bg-white/90 p-6 shadow-sm">
-                  <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-                    <h2 className="flex items-center gap-2 text-2xl font-semibold text-[var(--primary)]">
-                      <Icon fill name="star" />
-                      Đánh giá từ học viên
-                    </h2>
-                    <span className="text-sm font-semibold text-[var(--on-surface-variant)]">
-                      {Number(tutor.ratingAvg).toFixed(1)} / 5 từ {reviews.length} đánh giá
-                    </span>
-                  </div>
-
-                  {reviews.length ? (
-                    <div className="space-y-3">
-                      {reviews.map((review) => (
-                        <article className="rounded-lg border border-[var(--outline-variant)]/60 bg-[var(--surface-container-low)] p-4" key={review.id}>
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-bold">{review.student.fullName}</p>
-                            <span className="text-sm font-bold text-[var(--secondary)]">
-                              {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
-                            </span>
-                          </div>
-                          {review.comment ? <p className="mt-2 text-sm leading-6 text-[var(--on-surface-variant)]">{review.comment}</p> : null}
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[var(--on-surface-variant)]">Chưa có đánh giá công khai.</p>
-                  )}
-
-                  {auth.user?.role === "STUDENT" && eligibleBookings.length ? (
-                    <div className="mt-5 rounded-lg border border-[var(--outline-variant)] bg-white p-4">
-                      <h3 className="mb-3 text-base font-bold">Gửi đánh giá sau buổi học</h3>
-                      <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
-                        <select
-                          className="rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-                          onChange={(event) => setSelectedReviewBookingId(event.target.value)}
-                          value={selectedReviewBookingId}
-                        >
-                          {eligibleBookings.map((booking) => (
-                            <option key={booking.id} value={booking.id}>
-                              {new Date(booking.startsAt).toLocaleString("vi-VN")}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          className="rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-                          onChange={(event) => setReviewRating(Number(event.target.value))}
-                          value={reviewRating}
-                        >
-                          {[5, 4, 3, 2, 1].map((rating) => (
-                            <option key={rating} value={rating}>
-                              {rating} sao
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <textarea
-                        className="mt-3 min-h-24 w-full rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-                        maxLength={1000}
-                        onChange={(event) => setReviewComment(event.target.value)}
-                        placeholder="Chia sẻ trải nghiệm học của bạn"
-                        value={reviewComment}
-                      />
-                      <button
-                        className="mt-3 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
-                        disabled={isReviewing || !selectedReviewBookingId}
-                        onClick={handleCreateReview}
-                        type="button"
-                      >
-                        {isReviewing ? "Đang gửi..." : "Gửi đánh giá"}
-                      </button>
-                      {reviewMessage ? <p className="mt-2 text-sm font-semibold text-[var(--on-surface-variant)]">{reviewMessage}</p> : null}
-                    </div>
-                  ) : null}
-                </section>
+              <div className="space-y-6 lg:col-span-6">
+                <TrustSummary tutor={tutor} />
+                <AboutSection tutor={tutor} />
+                <SubjectsAndDocuments tutor={tutor} />
+                <ReviewsSection
+                  authRole={auth.user?.role}
+                  eligibleBookings={eligibleBookings}
+                  isReviewing={isReviewing}
+                  onCreateReview={handleCreateReview}
+                  reviewComment={reviewComment}
+                  reviewMessage={reviewMessage}
+                  reviewRating={reviewRating}
+                  reviews={reviews}
+                  selectedReviewBookingId={selectedReviewBookingId}
+                  setReviewComment={setReviewComment}
+                  setReviewRating={setReviewRating}
+                  setSelectedReviewBookingId={setSelectedReviewBookingId}
+                  tutor={tutor}
+                />
               </div>
 
-              <aside className="space-y-6 lg:col-span-4">
-                <section className="sticky top-24 rounded-xl border border-[var(--outline-variant)] bg-white/95 p-5 shadow-lg" id="availability">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-[var(--primary)]">Lịch rảnh</h2>
-                    <span className="text-xs font-semibold text-[var(--outline)]">GMT+7</span>
-                  </div>
-                  <div className="mb-4 flex items-center justify-between border-y border-[var(--outline-variant)]/50 py-2">
-                    <button
-                      className="rounded-full p-1 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]"
-                      onClick={() => {
-                        setSelectedSlotIds([]);
-                        setWeek((current) => addDays(current, -7));
-                      }}
-                      type="button"
-                    >
-                      <Icon name="chevron_left" />
-                    </button>
-                    <span className="text-sm font-semibold">
-                      {week.toLocaleDateString("vi-VN")} - {addDays(week, 6).toLocaleDateString("vi-VN")}
-                    </span>
-                    <button
-                      className="rounded-full p-1 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]"
-                      onClick={() => {
-                        setSelectedSlotIds([]);
-                        setWeek((current) => addDays(current, 7));
-                      }}
-                      type="button"
-                    >
-                      <Icon name="chevron_right" />
-                    </button>
-                  </div>
-
-                  <AvailabilityGrid
-                    selectedSlotIds={selectedSlotIds}
-                    setSelectedSlotIds={setSelectedSlotIds}
-                    slots={slots}
-                    week={week}
-                  />
-
-                  {tutor ? (
-                    <LessonModeSelector
-                      mode={selectedTeachingMode}
-                      onChange={setSelectedTeachingMode}
-                      tutorMode={tutor.teachingMode}
-                    />
-                  ) : null}
-
-                  <button
-                    className="mt-5 flex min-h-14 w-full items-center justify-center whitespace-nowrap rounded-xl bg-[var(--primary)] px-5 py-4 text-base font-bold text-white shadow-sm transition hover:bg-[var(--primary-container)] disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!selectedSlotIds.length || isBooking}
-                    onClick={() => setShowBookingConfirm(true)}
-                    type="button"
-                  >
-                    {isBooking ? "Đang đặt lịch..." : selectedSlotIds.length > 1 ? `Đặt ${selectedSlotIds.length} lịch học` : "Đặt lịch học"}
-                  </button>
-                  {bookingMessage ? (
-                    <p className="mt-3 rounded-lg bg-[var(--surface-container-low)] p-3 text-sm font-semibold text-[var(--on-surface-variant)]">
-                      {bookingMessage}
-                      {createdBookingId ? (
-                        <Link className="ml-2 font-black text-[var(--primary)] hover:underline" href={`/bookings/${createdBookingId}`}>
-                          Xem lịch học
-                        </Link>
-                      ) : null}
-                    </p>
-                  ) : null}
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button className="rounded-xl border border-[var(--outline-variant)] py-3 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--surface-container)]" type="button">
-                      Nhắn tin
-                    </button>
-                    <button className="rounded-xl border border-[var(--outline-variant)] py-3 text-sm font-semibold text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)]" type="button">
-                      Lưu gia sư
-                    </button>
-                  </div>
-                </section>
+              <aside className="space-y-6 lg:col-span-6">
+                <BookingPanel
+                  bookingMessage={bookingMessage}
+                  createdBookingId={createdBookingId}
+                  isBooking={isBooking}
+                  onOpenConfirm={() => setShowBookingConfirm(true)}
+                  selectedSlotIds={selectedSlotIds}
+                  selectedSlots={selectedSlots}
+                  selectedTeachingMode={selectedTeachingMode}
+                  setSelectedSlotIds={setSelectedSlotIds}
+                  setSelectedTeachingMode={setSelectedTeachingMode}
+                  setWeek={setWeek}
+                  slots={slots}
+                  tutor={tutor}
+                  week={week}
+                />
               </aside>
             </div>
+
+            <MobileBookingBar
+              isBooking={isBooking}
+              onOpenConfirm={() => setShowBookingConfirm(true)}
+              selectedCount={selectedSlotIds.length}
+              tutor={tutor}
+            />
           </>
         ) : null}
       </main>
@@ -561,6 +331,467 @@ export function TutorDetailScreen({ id }: { id: string }) {
         />
       ) : null}
     </PublicShell>
+  );
+}
+
+function HeroProfile({
+  location,
+  reviewCount,
+  tutor,
+}: {
+  location: string;
+  reviewCount: number;
+  tutor: PublicTutorDetail;
+}) {
+  return (
+    <Card className="mb-6 p-5 sm:p-6">
+      <section className="grid gap-6 lg:grid-cols-[auto_minmax(0,1fr)_minmax(220px,auto)] lg:items-center">
+        <div className="flex min-w-0 items-start gap-4">
+          <div className="relative shrink-0">
+            <Avatar className="h-24 w-24 border-4 border-[var(--surface-container-highest)] text-3xl sm:h-32 sm:w-32" name={tutor.fullName} size="xl" src={tutor.avatarUrl} />
+            {tutor.verified ? (
+              <span className="absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-[var(--tertiary-container)] text-white">
+                <Icon className="text-[18px]" fill name="verified" />
+              </span>
+            ) : null}
+          </div>
+          <div className="min-w-0 lg:hidden">
+            <ProfileHeading tutor={tutor} />
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <div className="hidden lg:block">
+            <ProfileHeading tutor={tutor} />
+          </div>
+          <div className="mt-4 grid gap-3 text-sm font-semibold text-[var(--on-surface-variant)] sm:grid-cols-3">
+            <InfoPill icon="star" tone="warning">
+              <strong>{Number(tutor.ratingAvg).toFixed(1)}</strong>
+              <span>{reviewCount ? `${reviewCount} đánh giá` : `${tutor.totalSessions} buổi học`}</span>
+            </InfoPill>
+            <InfoPill icon="location_on">{location}</InfoPill>
+            <InfoPill icon="laptop_mac">{teachingModeLabel(tutor.teachingMode)}</InfoPill>
+          </div>
+        </div>
+
+        <div className="rounded-[var(--radius-lg)] border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4">
+          <p className="text-xs font-bold text-[var(--outline)]">Học phí</p>
+          <p className="mt-1 text-3xl font-black leading-tight text-[var(--primary)]">
+            {formatMoney(tutor.hourlyRate)}
+            <span className="ml-1 text-sm font-semibold text-[var(--outline)]">/giờ</span>
+          </p>
+          <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+            <a className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--secondary-container)] px-4 py-2.5 text-sm font-black text-[var(--on-secondary-container)] transition hover:bg-[var(--secondary)] hover:text-[var(--on-secondary)]" href="#availability">
+              Xem lịch rảnh
+            </a>
+            <Link
+              aria-label="Nhắn tin với gia sư"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-white text-[var(--primary)] transition hover:bg-[var(--surface-container-low)]"
+              href="/messages"
+            >
+              <Icon name="mail" />
+            </Link>
+          </div>
+        </div>
+      </section>
+    </Card>
+  );
+}
+
+function ProfileHeading({ tutor }: { tutor: PublicTutorDetail }) {
+  return (
+    <>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <h1 className="max-w-full truncate text-2xl font-black leading-tight text-[var(--on-surface)] sm:text-4xl" title={tutor.fullName}>
+          {tutor.fullName}
+        </h1>
+        {tutor.verified ? <StatusBadge tone="success">Đã xác thực</StatusBadge> : <StatusBadge tone="neutral">Đang cập nhật</StatusBadge>}
+      </div>
+      <p className="mt-2 max-w-3xl text-base font-bold leading-6 text-[var(--primary)] sm:text-lg">
+        {tutor.headline || "Gia sư chuyên môn cao"}
+      </p>
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--on-surface-variant)]">
+        {tutor.bioExcerpt || "Xem lịch rảnh, môn học và đánh giá để quyết định đặt buổi học phù hợp."}
+      </p>
+    </>
+  );
+}
+
+function InfoPill({ children, icon, tone = "neutral" }: { children: ReactNode; icon: string; tone?: "neutral" | "warning" }) {
+  return (
+    <span className="flex min-h-11 min-w-0 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] px-3">
+      <Icon className={tone === "warning" ? "text-[var(--secondary)]" : "text-[var(--outline)]"} fill={tone === "warning"} name={icon} />
+      <span className="flex min-w-0 items-center gap-1 truncate">{children}</span>
+    </span>
+  );
+}
+
+function TrustSummary({ tutor }: { tutor: PublicTutorDetail }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      <MetricCard icon="workspace_premium" label="Kinh nghiệm" value={tutor.experienceYears ? `${tutor.experienceYears} năm` : "Mới"} />
+      <MetricCard icon="event_available" label="Buổi học" value={`${tutor.totalSessions}`} />
+      <MetricCard icon="shield" label="Xác minh" value={tutor.verified ? "Đã duyệt" : "Đang cập nhật"} />
+    </div>
+  );
+}
+
+function MetricCard({ icon, label, value }: { icon: string; label: string; value: string }) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--primary-fixed)] text-[var(--primary)]">
+          <Icon name={icon} />
+        </span>
+        <div>
+          <p className="text-xs font-bold text-[var(--outline)]">{label}</p>
+          <p className="text-lg font-black text-[var(--on-surface)]">{value}</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function AboutSection({ tutor }: { tutor: PublicTutorDetail }) {
+  return (
+    <Card>
+      <h2 className="flex items-center gap-2 text-2xl font-black text-[var(--on-surface)]">
+        <Icon className="text-[var(--primary)]" name="person_book" />
+        Giới thiệu
+      </h2>
+      <p className="mt-4 whitespace-pre-line text-base leading-8 text-[var(--on-surface-variant)]">
+        {tutor.bio || tutor.bioExcerpt || "Gia sư chưa cập nhật phần giới thiệu chi tiết."}
+      </p>
+    </Card>
+  );
+}
+
+function SubjectsAndDocuments({ tutor }: { tutor: PublicTutorDetail }) {
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <Card>
+        <h2 className="text-xl font-black text-[var(--on-surface)]">Môn học</h2>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {tutor.subjects.length ? (
+            tutor.subjects.map((item) => (
+              <Badge key={item.id} tone="neutral">
+                <span className="truncate">
+                  {item.subject.name} · {levelLabels[item.level] || item.level}
+                </span>
+              </Badge>
+            ))
+          ) : (
+            <p className="text-sm text-[var(--on-surface-variant)]">Chưa cập nhật môn học.</p>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--on-surface)]">
+          <Icon className="text-[var(--tertiary)]" fill name="verified_user" />
+          Tài liệu xác minh
+        </h2>
+        <div className="mt-4 space-y-3">
+          {tutor.verifiedDocuments.length ? (
+            tutor.verifiedDocuments.map((document) => (
+              <div className="flex items-start gap-3 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] p-3" key={document.id}>
+                <Icon className="mt-0.5 text-[var(--tertiary)]" fill name="check_circle" />
+                <div>
+                  <p className="font-bold text-[var(--on-surface)]">{documentLabel(document.type)}</p>
+                  <p className="text-xs font-semibold text-[var(--on-surface-variant)]">Đã được TutorConnect kiểm duyệt</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="rounded-[var(--radius-md)] bg-[var(--surface-container-low)] p-3 text-sm font-semibold text-[var(--on-surface-variant)]">
+              Hồ sơ đã duyệt, tài liệu không hiển thị công khai.
+            </p>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ReviewsSection({
+  authRole,
+  eligibleBookings,
+  isReviewing,
+  onCreateReview,
+  reviewComment,
+  reviewMessage,
+  reviewRating,
+  reviews,
+  selectedReviewBookingId,
+  setReviewComment,
+  setReviewRating,
+  setSelectedReviewBookingId,
+  tutor,
+}: {
+  authRole?: string;
+  eligibleBookings: EligibleReviewBooking[];
+  isReviewing: boolean;
+  onCreateReview: () => void;
+  reviewComment: string;
+  reviewMessage: string;
+  reviewRating: number;
+  reviews: Review[];
+  selectedReviewBookingId: string;
+  setReviewComment: (value: string) => void;
+  setReviewRating: (value: number) => void;
+  setSelectedReviewBookingId: (value: string) => void;
+  tutor: PublicTutorDetail;
+}) {
+  return (
+    <Card>
+      <div className="mb-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+        <div>
+          <h2 className="flex items-center gap-2 text-2xl font-black text-[var(--on-surface)]">
+            <Icon className="text-[var(--secondary)]" fill name="star" />
+            Đánh giá từ học viên
+          </h2>
+          <p className="mt-1 text-sm font-semibold text-[var(--on-surface-variant)]">
+            {Number(tutor.ratingAvg).toFixed(1)} / 5 từ {reviews.length} đánh giá công khai
+          </p>
+        </div>
+      </div>
+
+      {reviews.length ? (
+        <div className="space-y-3">
+          {reviews.slice(0, 3).map((review) => (
+            <article className="rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4" key={review.id}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-black text-[var(--on-surface)]">{review.student.fullName}</p>
+                <span className="text-sm font-black text-[var(--secondary)]">
+                  {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+                </span>
+              </div>
+              {review.comment ? <p className="mt-2 text-sm leading-6 text-[var(--on-surface-variant)]">{review.comment}</p> : null}
+            </article>
+          ))}
+          <Link
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--primary)] bg-white px-4 py-2.5 text-sm font-black text-[var(--primary)] transition hover:bg-[var(--primary-fixed)]"
+            href={`/tutors/${tutor.id}/reviews`}
+          >
+            Xem tất cả đánh giá
+            <Icon className="text-[18px]" name="arrow_forward" />
+          </Link>
+        </div>
+      ) : (
+        <FeedbackState
+          className="min-h-48"
+          description="Gia sư chưa có đánh giá công khai. Bạn vẫn có thể dựa vào xác minh hồ sơ, môn học và lịch rảnh để ra quyết định."
+          title="Chưa có đánh giá"
+          tone="empty"
+        />
+      )}
+
+      {authRole === "STUDENT" && eligibleBookings.length ? (
+        <div className="mt-5 rounded-[var(--radius-lg)] border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4">
+          <h3 className="text-base font-black text-[var(--on-surface)]">Gửi đánh giá sau buổi học</h3>
+          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <select
+              className="min-h-11 rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-[var(--primary)]"
+              onChange={(event) => setSelectedReviewBookingId(event.target.value)}
+              value={selectedReviewBookingId}
+            >
+              {eligibleBookings.map((booking) => (
+                <option key={booking.id} value={booking.id}>
+                  {new Date(booking.startsAt).toLocaleDateString("vi-VN")} · {new Date(booking.startsAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                </option>
+              ))}
+            </select>
+            <select
+              className="min-h-11 rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-[var(--primary)]"
+              onChange={(event) => setReviewRating(Number(event.target.value))}
+              value={reviewRating}
+            >
+              {[5, 4, 3, 2, 1].map((rating) => (
+                <option key={rating} value={rating}>
+                  {rating} sao
+                </option>
+              ))}
+            </select>
+          </div>
+          <textarea
+            className="mt-3 min-h-24 w-full rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+            maxLength={1000}
+            onChange={(event) => setReviewComment(event.target.value)}
+            placeholder="Chia sẻ trải nghiệm học của bạn"
+            value={reviewComment}
+          />
+          <Button className="mt-3" disabled={!selectedReviewBookingId} isLoading={isReviewing} onClick={onCreateReview}>
+            Gửi đánh giá
+          </Button>
+          {reviewMessage ? <p className="mt-2 text-sm font-semibold text-[var(--on-surface-variant)]">{reviewMessage}</p> : null}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function BookingPanel({
+  bookingMessage,
+  createdBookingId,
+  isBooking,
+  onOpenConfirm,
+  selectedSlotIds,
+  selectedSlots,
+  selectedTeachingMode,
+  setSelectedSlotIds,
+  setSelectedTeachingMode,
+  setWeek,
+  slots,
+  tutor,
+  week,
+}: {
+  bookingMessage: string;
+  createdBookingId: string;
+  isBooking: boolean;
+  onOpenConfirm: () => void;
+  selectedSlotIds: string[];
+  selectedSlots: TutorAvailabilitySlot[];
+  selectedTeachingMode: Exclude<BookingTeachingMode, "BOTH">;
+  setSelectedSlotIds: (ids: string[]) => void;
+  setSelectedTeachingMode: (mode: Exclude<BookingTeachingMode, "BOTH">) => void;
+  setWeek: (updater: (current: Date) => Date) => void;
+  slots: TutorAvailabilitySlot[];
+  tutor: PublicTutorDetail;
+  week: Date;
+}) {
+  return (
+    <Card className="sticky top-24 p-5" id="availability">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black text-[var(--on-surface)]">Lịch rảnh</h2>
+          <p className="mt-1 text-xs font-bold text-[var(--outline)]">GMT+7 · Gia sư xác nhận trước khi thanh toán</p>
+        </div>
+        <Badge tone="info">{selectedSlotIds.length ? `${selectedSlotIds.length} đã chọn` : "Chọn lịch"}</Badge>
+      </div>
+
+      <div className="mb-4 flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-2 py-2">
+        <button
+          aria-label="Tuần trước"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-full)] text-[var(--on-surface-variant)] hover:bg-white focus:shadow-[var(--focus-ring)] focus:outline-none"
+          onClick={() => {
+            setSelectedSlotIds([]);
+            setWeek((current) => addDays(current, -7));
+          }}
+          type="button"
+        >
+          <Icon name="chevron_left" />
+        </button>
+        <span className="text-center text-sm font-black text-[var(--on-surface)]">
+          {week.toLocaleDateString("vi-VN")} - {addDays(week, 6).toLocaleDateString("vi-VN")}
+        </span>
+        <button
+          aria-label="Tuần sau"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-full)] text-[var(--on-surface-variant)] hover:bg-white focus:shadow-[var(--focus-ring)] focus:outline-none"
+          onClick={() => {
+            setSelectedSlotIds([]);
+            setWeek((current) => addDays(current, 7));
+          }}
+          type="button"
+        >
+          <Icon name="chevron_right" />
+        </button>
+      </div>
+
+      <AvailabilityGrid selectedSlotIds={selectedSlotIds} setSelectedSlotIds={setSelectedSlotIds} slots={slots} week={week} />
+
+      <LessonModeSelector mode={selectedTeachingMode} onChange={setSelectedTeachingMode} tutorMode={tutor.teachingMode} />
+
+      <BookingSummary selectedSlots={selectedSlots} tutor={tutor} />
+
+      <Button
+        className="mt-4 w-full"
+        disabled={!selectedSlotIds.length}
+        isLoading={isBooking}
+        onClick={onOpenConfirm}
+        size="lg"
+      >
+        {selectedSlotIds.length > 1 ? `Đặt ${selectedSlotIds.length} lịch học` : "Đặt lịch học"}
+      </Button>
+
+      {bookingMessage ? (
+        <p className="mt-3 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] p-3 text-sm font-semibold text-[var(--on-surface-variant)]">
+          {bookingMessage}
+          {createdBookingId ? (
+            <Link className="ml-2 font-black text-[var(--primary)] hover:underline" href={`/bookings/${createdBookingId}`}>
+              Xem lịch học
+            </Link>
+          ) : null}
+        </p>
+      ) : null}
+
+      <PaymentPolicy />
+    </Card>
+  );
+}
+
+function BookingSummary({ selectedSlots, tutor }: { selectedSlots: TutorAvailabilitySlot[]; tutor: PublicTutorDetail }) {
+  if (!selectedSlots.length) {
+    return (
+      <div className="mt-4 rounded-[var(--radius-md)] border border-dashed border-[var(--outline-variant)] p-3 text-sm font-semibold text-[var(--on-surface-variant)]">
+        Chọn một hoặc nhiều khung giờ để xem học phí dự kiến.
+      </div>
+    );
+  }
+
+  const hours = selectedSlots.reduce((sum, slot) => {
+    const startsAt = new Date(slot.startsAt);
+    const endsAt = new Date(slot.endsAt);
+    return sum + Math.max(0, (endsAt.getTime() - startsAt.getTime()) / 3_600_000);
+  }, 0);
+  const tuition = Math.round(Number(tutor.hourlyRate || 0) * hours);
+
+  return (
+    <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-3 text-sm">
+      <SummaryRow label="Lịch đã chọn" value={`${selectedSlots.length} buổi`} />
+      <SummaryRow label="Thời lượng dự kiến" value={`${hours || selectedSlots.length} giờ`} />
+      <SummaryRow strong label="Học phí dự kiến" value={formatMoney(String(tuition))} />
+    </div>
+  );
+}
+
+function PaymentPolicy() {
+  return (
+    <div className="mt-4 rounded-[var(--radius-md)] bg-[var(--secondary-container)]/35 p-3 text-xs font-semibold leading-5 text-[var(--on-surface-variant)]">
+      <p className="font-black text-[var(--on-surface)]">Thanh toán an toàn</p>
+      <p className="mt-1">Gia sư xác nhận trước khi bạn thanh toán. Học phí được hệ thống giữ và chỉ chuyển sau khi buổi học hoàn thành.</p>
+    </div>
+  );
+}
+
+function MobileBookingBar({
+  isBooking,
+  onOpenConfirm,
+  selectedCount,
+  tutor,
+}: {
+  isBooking: boolean;
+  onOpenConfirm: () => void;
+  selectedCount: number;
+  tutor: PublicTutorDetail;
+}) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-[var(--z-sticky)] border-t border-[var(--outline-variant)] bg-white/95 px-4 py-3 shadow-[var(--shadow-bottom-nav)] backdrop-blur lg:hidden">
+      <div className="mx-auto flex max-w-[560px] items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold text-[var(--outline)]">Học phí</p>
+          <p className="truncate text-lg font-black text-[var(--primary)]">{formatMoney(tutor.hourlyRate)}/giờ</p>
+        </div>
+        {selectedCount ? (
+          <Button disabled={isBooking} isLoading={isBooking} onClick={onOpenConfirm}>
+            Đặt {selectedCount} lịch
+          </Button>
+        ) : (
+          <a className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2.5 text-sm font-bold text-[var(--on-primary)]" href="#availability">
+            Xem lịch
+          </a>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -591,54 +822,54 @@ function BookingConfirmModal({
   const total = tuition;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 px-4 py-6">
-      <section className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
-        <header className="bg-[var(--primary)] px-6 py-5 text-white">
-          <h2 className="text-xl font-black">Xác nhận đặt lịch</h2>
-          <p className="mt-1 text-sm text-white/80">Gia sư sẽ xác nhận trước khi học sinh thanh toán.</p>
-        </header>
-        <div className="space-y-4 p-6">
-          <div>
-            <p className="text-xs font-bold uppercase text-[var(--on-surface-variant)]">Gia sư</p>
-            <p className="mt-1 text-lg font-black">{tutor.fullName}</p>
-            <p className="text-sm text-[var(--on-surface-variant)]">{teachingModeLabel(mode)}</p>
-          </div>
-          <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg bg-[var(--surface-container-low)] p-4">
-            {orderedSlots.map((slot) => {
-              const startsAt = new Date(slot.startsAt);
-              const endsAt = new Date(slot.endsAt);
-
-              return (
-                <div className="rounded-lg bg-white px-3 py-2" key={slot.id}>
-                  <p className="font-bold">{startsAt.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}</p>
-                  <p className="mt-1 text-sm text-[var(--on-surface-variant)]">
-                    {startsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {endsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-          <div className="space-y-2 rounded-lg border border-[var(--outline-variant)] p-4 text-sm">
-            <SummaryRow label="Số buổi đã chọn" value={`${orderedSlots.length} buổi`} />
-            <SummaryRow label="Học phí dự kiến" value={formatMoney(String(tuition))} />
-            <SummaryRow label="Phí nền tảng đã bao gồm" value={formatMoney(String(platformFee))} />
-            <hr className="border-[var(--outline-variant)]" />
-            <SummaryRow strong label="Tổng giữ chỗ" value={formatMoney(String(total))} />
-          </div>
-          <p className="rounded-lg bg-[var(--secondary-container)]/40 p-3 text-xs font-semibold leading-5 text-[var(--on-surface-variant)]">
-            Sau khi gia sư xác nhận, bạn sẽ thanh toán ở trang chi tiết lịch học. Tiền được giữ bởi hệ thống và chỉ chuyển cho gia sư khi buổi học hoàn thành.
-          </p>
+    <Dialog
+      className="max-w-lg"
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
+      description="Gia sư sẽ xác nhận trước khi học sinh thanh toán."
+      onClose={onCancel}
+      open
+      title="Xác nhận đặt lịch"
+    >
+      <div className="space-y-4 p-6">
+        <div>
+          <p className="text-xs font-bold uppercase text-[var(--on-surface-variant)]">Gia sư</p>
+          <p className="mt-1 text-lg font-black">{tutor.fullName}</p>
+          <p className="text-sm text-[var(--on-surface-variant)]">{teachingModeLabel(mode)}</p>
         </div>
-        <footer className="grid grid-cols-2 gap-3 bg-[var(--surface-container-low)] p-4">
-          <button className="whitespace-nowrap rounded-lg border border-[var(--outline-variant)] px-4 py-3 text-sm font-black text-[var(--on-surface-variant)]" disabled={busy} onClick={onCancel} type="button">
-            Hủy
-          </button>
-          <button className="whitespace-nowrap rounded-lg bg-[var(--primary)] px-4 py-3 text-sm font-black text-white disabled:opacity-60" disabled={busy} onClick={onConfirm} type="button">
-            {busy ? "Đang gửi..." : "Gửi yêu cầu"}
-          </button>
-        </footer>
-      </section>
-    </div>
+        <div className="max-h-56 space-y-2 overflow-y-auto rounded-[var(--radius-md)] bg-[var(--surface-container-low)] p-4">
+          {orderedSlots.map((slot) => {
+            const startsAt = new Date(slot.startsAt);
+            const endsAt = new Date(slot.endsAt);
+
+            return (
+              <div className="rounded-[var(--radius-md)] bg-white px-3 py-2" key={slot.id}>
+                <p className="font-bold">{startsAt.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}</p>
+                <p className="mt-1 text-sm text-[var(--on-surface-variant)]">
+                  {startsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {endsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--outline-variant)] p-4 text-sm">
+          <SummaryRow label="Số buổi đã chọn" value={`${orderedSlots.length} buổi`} />
+          <SummaryRow label="Học phí dự kiến" value={formatMoney(String(tuition))} />
+          <SummaryRow label="Phí nền tảng đã bao gồm" value={formatMoney(String(platformFee))} />
+          <hr className="border-[var(--outline-variant)]" />
+          <SummaryRow strong label="Tổng giữ chỗ" value={formatMoney(String(total))} />
+        </div>
+        <PaymentPolicy />
+      </div>
+      <footer className="grid grid-cols-2 gap-3 bg-[var(--surface-container-low)] p-4">
+        <Button disabled={busy} onClick={onCancel} variant="outline">
+          Hủy
+        </Button>
+        <Button isLoading={busy} onClick={onConfirm}>
+          Gửi yêu cầu
+        </Button>
+      </footer>
+    </Dialog>
   );
 }
 
@@ -669,17 +900,17 @@ function AvailabilityGrid({
     { label: "Tối", icon: "bedtime", start: 18, end: 24 },
   ];
 
-  function slotsFor(day: Date, start: number, end: number) {
+  function slotsFor(day: Date, start = 0, end = 24) {
     return slots
       .filter((slot) => {
-      const date = new Date(slot.startsAt);
-      return (
+        const date = new Date(slot.startsAt);
+        return (
           date.getFullYear() === day.getFullYear() &&
           date.getMonth() === day.getMonth() &&
           date.getDate() === day.getDate() &&
           date.getHours() >= start &&
           date.getHours() < end
-      );
+        );
       })
       .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
   }
@@ -700,78 +931,127 @@ function AvailabilityGrid({
 
   return (
     <div>
-      <div className="grid grid-cols-8 gap-2 text-center text-xs font-semibold text-[var(--outline)]">
-        <div />
-        {days.map((day) => (
-          <div key={day.toISOString()}>
-            <div>{["T2", "T3", "T4", "T5", "T6", "T7", "CN"][days.indexOf(day)]}</div>
-            <div className="text-[10px]">{day.getUTCDate()}</div>
-          </div>
-        ))}
+      <div className="space-y-3 lg:hidden">
+        {days.map((day) => {
+          const daySlots = slotsFor(day);
+
+          return (
+            <details className="rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-[var(--surface-container-low)]" key={day.toISOString()} open={daySlots.length > 0}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-sm font-black text-[var(--on-surface)]">
+                <span>{day.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" })}</span>
+                <span className="text-xs font-bold text-[var(--outline)]">{daySlots.length ? `${daySlots.length} lịch` : "Chưa có lịch"}</span>
+              </summary>
+              <div className="grid grid-cols-2 gap-2 border-t border-[var(--outline-variant)] p-3">
+                {daySlots.length ? (
+                  daySlots.map((slot) => <SlotButton key={slot.id} selected={selectedSlotIds.includes(slot.id)} slot={slot} timeRange={timeRange(slot)} toggleSlot={toggleSlot} />)
+                ) : (
+                  <p className="col-span-2 text-sm font-semibold text-[var(--on-surface-variant)]">Gia sư chưa mở lịch ngày này.</p>
+                )}
+              </div>
+            </details>
+          );
+        })}
       </div>
 
-      <div className="mt-2 grid grid-cols-8 gap-2">
-        {groups.map((group) => (
-          <div className="contents" key={group.label}>
-            <div className="flex min-h-12 flex-col items-center justify-center rounded-lg bg-[var(--surface-container-low)] py-2 text-[10px] font-semibold">
-              <Icon className="text-[16px]" name={group.icon} />
-              {group.label}
+      <div className="hidden lg:block">
+        <div className="grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1.5 text-center text-xs font-bold text-[var(--outline)]">
+          <div />
+          {days.map((day, index) => (
+            <div key={day.toISOString()}>
+              <div>{["T2", "T3", "T4", "T5", "T6", "T7", "CN"][index]}</div>
+              <div className="text-xs">{day.getUTCDate()}</div>
             </div>
-            {days.map((day) => {
-              const daySlots = slotsFor(day, group.start, group.end);
+          ))}
+        </div>
 
-              return (
-                <div className="flex min-h-14 flex-col gap-1 rounded border border-[var(--outline-variant)]/30 bg-[var(--surface-container-high)]/35 p-1" key={`${day.toISOString()}-${group.label}`}>
-                  {daySlots.length ? (
-                    daySlots.map((slot) => {
-                      const selected = selectedSlotIds.includes(slot.id);
-                      const disabled = slot.isBooked;
+        <div className="mt-2 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1.5">
+          {groups.map((group) => (
+            <div className="contents" key={group.label}>
+              <div className="flex min-h-12 min-w-0 flex-col items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-container-low)] px-1 py-2 text-xs font-bold">
+                <Icon className="text-[16px]" name={group.icon} />
+                {group.label}
+              </div>
+              {days.map((day) => {
+                const daySlots = slotsFor(day, group.start, group.end);
 
-                      return (
-                        <button
-                          className={[
-                            "min-h-9 rounded px-1.5 py-1 text-[10px] font-semibold leading-tight transition",
-                            selected
-                              ? "bg-[var(--primary)] text-white shadow-sm"
-                              : disabled
-                                ? "bg-[var(--surface-container-high)] text-[var(--outline)]"
-                                : "border border-[var(--primary)] bg-white text-[var(--primary)] hover:bg-[var(--primary)]/5",
-                          ].join(" ")}
-                          disabled={disabled}
-                          key={slot.id}
-                          onClick={() => toggleSlot(slot.id)}
-                          title={timeRange(slot)}
-                          type="button"
-                        >
-                          {timeRange(slot)}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="flex min-h-9 items-center justify-center rounded bg-[var(--surface-container-high)] text-[10px] font-semibold text-[var(--outline)]">--</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+                return (
+                  <div className="flex min-h-14 min-w-0 flex-col gap-1 rounded-[var(--radius-sm)] border border-[var(--outline-variant)]/60 bg-[var(--surface-container-low)]/60 p-1" key={`${day.toISOString()}-${group.label}`}>
+                    {daySlots.length ? (
+                      daySlots.map((slot) => <SlotButton key={slot.id} selected={selectedSlotIds.includes(slot.id)} slot={slot} timeRange={timeRange(slot)} toggleSlot={toggleSlot} />)
+                    ) : (
+                      <div className="flex min-h-11 items-center justify-center rounded bg-[var(--surface-container-high)] text-xs font-semibold text-[var(--outline)]">--</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-4 border-t border-[var(--outline-variant)]/50 pt-4 text-xs text-[var(--on-surface-variant)]">
-        <span className="flex items-center gap-1">
-          <span className="h-4 w-4 rounded border border-[var(--primary)] bg-white" />
-          Rảnh
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-4 w-4 rounded bg-[var(--primary)]" />
-          Đã chọn
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-4 w-4 rounded bg-[var(--surface-container-high)]" />
-          Bận
-        </span>
+      <div className="mt-4 flex flex-wrap gap-4 border-t border-[var(--outline-variant)] pt-4 text-xs text-[var(--on-surface-variant)]">
+        <Legend label="Rảnh" className="border border-[var(--primary)] bg-white" />
+        <Legend label="Đã chọn" className="bg-[var(--primary)]" />
+        <Legend label="Bận" className="bg-[var(--surface-container-high)]" />
       </div>
     </div>
+  );
+}
+
+function SlotButton({
+  selected,
+  slot,
+  timeRange,
+  toggleSlot,
+}: {
+  selected: boolean;
+  slot: TutorAvailabilitySlot;
+  timeRange: string;
+  toggleSlot: (slotId: string) => void;
+}) {
+  const disabled = slot.isBooked || !slot.isAvailable;
+  const startsAt = new Date(slot.startsAt);
+  const endsAt = new Date(slot.endsAt);
+
+  return (
+    <button
+      aria-label={timeRange}
+      className={[
+        "flex min-h-12 w-full min-w-0 flex-col items-center justify-center rounded-[var(--radius-sm)] px-1 py-2 text-[11px] font-black leading-tight transition focus:shadow-[var(--focus-ring)] focus:outline-none",
+        selected
+          ? "bg-[var(--primary)] text-white shadow-[var(--shadow-panel)]"
+          : disabled
+            ? "bg-[var(--surface-container-high)] text-[var(--outline)]"
+            : "border border-[var(--primary)] bg-white text-[var(--primary)] hover:bg-[var(--primary-fixed)]",
+      ].join(" ")}
+      disabled={disabled}
+      onClick={() => toggleSlot(slot.id)}
+      title={timeRange}
+      type="button"
+    >
+      <CompactTime date={startsAt} />
+      <span aria-hidden="true" className="text-[9px] leading-none opacity-75">-</span>
+      <CompactTime date={endsAt} />
+    </button>
+  );
+}
+
+function CompactTime({ date }: { date: Date }) {
+  const label = date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <span className="max-w-full whitespace-nowrap">
+      {label}
+    </span>
+  );
+}
+
+function Legend({ className, label }: { className: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className={`h-4 w-4 rounded ${className}`} />
+      {label}
+    </span>
   );
 }
 
@@ -788,33 +1068,11 @@ function LessonModeSelector({
   const supportsOffline = tutorMode === "OFFLINE" || tutorMode === "BOTH";
 
   return (
-    <div className="mt-5 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4">
-      <p className="mb-3 text-sm font-bold text-[var(--primary)]">Hình thức học</p>
+    <div className="mt-5 rounded-[var(--radius-lg)] border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4">
+      <p className="mb-3 text-sm font-black text-[var(--on-surface)]">Hình thức học</p>
       <div className="grid grid-cols-2 gap-2">
-        <button
-          className={[
-            "flex items-center justify-center gap-2 rounded-lg border px-3 py-3 text-sm font-bold transition",
-            mode === "ONLINE" ? "border-[var(--primary)] bg-[var(--primary)] text-white" : "border-[var(--outline-variant)] bg-white text-[var(--on-surface-variant)]",
-          ].join(" ")}
-          disabled={!supportsOnline}
-          onClick={() => onChange("ONLINE")}
-          type="button"
-        >
-          <Icon className="text-[18px]" name="videocam" />
-          Online
-        </button>
-        <button
-          className={[
-            "flex items-center justify-center gap-2 rounded-lg border px-3 py-3 text-sm font-bold transition",
-            mode === "OFFLINE" ? "border-[var(--primary)] bg-[var(--primary)] text-white" : "border-[var(--outline-variant)] bg-white text-[var(--on-surface-variant)]",
-          ].join(" ")}
-          disabled={!supportsOffline}
-          onClick={() => onChange("OFFLINE")}
-          type="button"
-        >
-          <Icon className="text-[18px]" name="location_on" />
-          Offline
-        </button>
+        <ModeButton active={mode === "ONLINE"} disabled={!supportsOnline} icon="videocam" label="Online" onClick={() => onChange("ONLINE")} />
+        <ModeButton active={mode === "OFFLINE"} disabled={!supportsOffline} icon="location_on" label="Offline" onClick={() => onChange("OFFLINE")} />
       </div>
       <p className="mt-2 text-xs font-semibold text-[var(--on-surface-variant)]">
         {tutorMode === "BOTH" ? "Gia sư hỗ trợ cả online và offline." : tutorMode === "ONLINE" ? "Gia sư chỉ nhận lớp online." : "Gia sư chỉ nhận lớp offline."}
@@ -823,22 +1081,56 @@ function LessonModeSelector({
   );
 }
 
+function ModeButton({
+  active,
+  disabled,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  disabled: boolean;
+  icon: string;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={[
+        "flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-45",
+        active ? "border-[var(--primary)] bg-[var(--primary)] text-white" : "border-[var(--outline-variant)] bg-white text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]",
+      ].join(" ")}
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      <Icon className="text-[18px]" name={icon} />
+      {label}
+    </button>
+  );
+}
+
 function DetailSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
-        <div className="flex gap-6">
-          <div className="skeleton-shimmer h-40 w-40 rounded-full" />
-          <div className="flex-1 space-y-4">
-            <div className="skeleton-shimmer h-9 w-1/2 rounded" />
-            <div className="skeleton-shimmer h-6 w-2/3 rounded" />
-            <div className="skeleton-shimmer h-20 w-full rounded" />
+    <div className="space-y-6" role="status" aria-label="Đang tải hồ sơ gia sư">
+      <Card className="p-5 sm:p-6">
+        <div className="grid gap-6 lg:grid-cols-[auto_1fr_240px]">
+          <Skeleton className="h-24 w-24 rounded-full sm:h-32 sm:w-32" />
+          <div className="space-y-4">
+            <Skeleton className="h-9 w-2/3" />
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-16 w-full" />
           </div>
+          <Skeleton className="h-36 w-full" />
         </div>
-      </div>
+      </Card>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="skeleton-shimmer h-96 rounded-xl lg:col-span-8" />
-        <div className="skeleton-shimmer h-96 rounded-xl lg:col-span-4" />
+        <div className="space-y-6 lg:col-span-8">
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-56 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+        <Skeleton className="h-[520px] w-full lg:col-span-4" />
       </div>
     </div>
   );
@@ -846,17 +1138,16 @@ function DetailSkeleton() {
 
 function StatePanel({ icon, title, message }: { icon: string; title: string; message: string }) {
   return (
-    <div className="flex min-h-[480px] items-center justify-center rounded-xl border border-[var(--outline-variant)] bg-white p-8 text-center shadow-sm">
-      <div className="max-w-md">
-        <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-[var(--surface-container-low)]">
-          <Icon className="text-[52px] text-[var(--primary)]" name={icon} />
-        </div>
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        <p className="mt-2 text-[var(--on-surface-variant)]">{message}</p>
-        <Link className="mt-5 inline-flex rounded-lg bg-[var(--primary)] px-5 py-3 text-sm font-semibold text-white" href="/tutors">
+    <FeedbackState
+      action={
+        <Link className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-[var(--on-primary)]" href="/tutors">
           Về danh sách gia sư
         </Link>
-      </div>
-    </div>
+      }
+      description={message}
+      icon={icon}
+      title={title}
+      tone={title.includes("Không tải") ? "error" : "not-found"}
+    />
   );
 }

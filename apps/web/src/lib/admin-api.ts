@@ -147,6 +147,26 @@ export type AdminDispute = {
     payoutStatus: AdminPayoutStatus;
     refundedAt: string | null;
   };
+  messages: Array<{
+    id: string;
+    body: string;
+    createdAt: string;
+    author: {
+      id: string;
+      fullName: string;
+      email: string;
+      role: "STUDENT" | "TUTOR" | "ADMIN" | "SUPER_ADMIN";
+    };
+    attachments: Array<{
+      id: string;
+      url: string;
+      fileName: string;
+      mimeType: string;
+      size: number;
+      kind: "IMAGE" | "DOCUMENT";
+      createdAt: string;
+    }>;
+  }>;
 };
 
 export type AdminAuditLog = {

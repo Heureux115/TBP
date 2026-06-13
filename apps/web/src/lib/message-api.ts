@@ -22,8 +22,19 @@ export type Conversation = {
     createdAt: string;
     senderName: string;
     mine: boolean;
+    attachments?: MessageAttachment[];
   } | null;
   updatedAt: string;
+};
+
+export type MessageAttachment = {
+  id: string;
+  url: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  kind: "IMAGE" | "DOCUMENT";
+  createdAt: string;
 };
 
 export type Message = {
@@ -36,6 +47,7 @@ export type Message = {
     fullName: string;
   };
   mine: boolean;
+  attachments: MessageAttachment[];
 };
 
 async function request<T>(path: string, token: string, options: RequestInit = {}) {
@@ -74,6 +86,29 @@ export function sendMessage(token: string, conversationId: string, body: string)
     method: "POST",
     body: JSON.stringify({ body }),
   });
+}
+
+export async function sendMessageWithAttachments(token: string, conversationId: string, body: string, files: File[]) {
+  const headers = new Headers();
+  await applyAuthHeaders(headers, token, "POST");
+  const formData = new FormData();
+  formData.append("body", body);
+  files.forEach((file) => formData.append("files", file));
+
+  const response = await fetch(`${API_URL}/messages/conversations/${conversationId}/messages`, {
+    method: "POST",
+    body: formData,
+    headers,
+    credentials: "include",
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = Array.isArray(payload?.message) ? payload.message.join(", ") : typeof payload?.message === "string" ? payload.message : "Request failed.";
+    throw new Error(message);
+  }
+
+  return payload as Message;
 }
 
 export function deleteMessageForMe(token: string, conversationId: string, messageId: string) {

@@ -2,7 +2,26 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AdminLayout, Avatar, Icon } from "@/components/admin/admin-layout";
+import { AdminLayout } from "@/components/admin/admin-layout";
+import {
+  AdminActionDialog,
+  AdminAlert,
+  AdminClearFiltersButton,
+  AdminEmptyState,
+  AdminMetric,
+  AdminMetricGrid,
+  AdminPage,
+  AdminPageHeader,
+  AdminSearchField,
+  AdminSelectField,
+  AdminTableLoading,
+  AdminToolbar,
+  AdminUserCell,
+  PaymentStatusBadge,
+  PayoutStatusBadge,
+  WithdrawalStatusBadge,
+} from "@/components/admin/admin-ui";
+import { Avatar, Button, DataTable, DataTableBody, DataTableHead } from "@/components/ui";
 import {
   AdminPayment,
   AdminPaymentProvider,
@@ -16,9 +35,14 @@ import {
   rejectAdminWithdrawal,
 } from "@/lib/admin-api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { createSearchMatcher } from "@/lib/search-text";
 
 type StatusFilter = "ALL" | AdminPaymentStatus;
 type ProviderFilter = "ALL" | AdminPaymentProvider;
+type PendingPaymentDialog =
+  | { payment: AdminPayment; type: "refund-payment" }
+  | { type: "reject-withdrawal"; withdrawal: AdminWithdrawal }
+  | null;
 
 function money(value: string | number) {
   return `${new Intl.NumberFormat("vi-VN").format(Number(value || 0))}đ`;
@@ -37,6 +61,8 @@ export default function AdminPaymentsPage() {
   const [busyId, setBusyId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pendingDialog, setPendingDialog] = useState<PendingPaymentDialog>(null);
+  const [dialogNote, setDialogNote] = useState("");
 
   useEffect(() => {
     const token = getAccessToken();
@@ -53,12 +79,12 @@ export default function AdminPaymentsPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
+    const matchesQuery = createSearchMatcher(query);
     return payments.filter((payment) => {
       const matchesStatus = status === "ALL" || payment.status === status;
       const matchesProvider = provider === "ALL" || payment.provider === provider;
-      const haystack = `${payment.id} ${payment.student.fullName} ${payment.student.email} ${payment.tutor.fullName} ${payment.provider}`.toLowerCase();
-      return matchesStatus && matchesProvider && (!keyword || haystack.includes(keyword));
+      const haystack = `${payment.id} ${payment.student.fullName} ${payment.student.email} ${payment.tutor.fullName} ${payment.provider}`;
+      return matchesStatus && matchesProvider && matchesQuery(haystack);
     });
   }, [payments, provider, query, status]);
 
@@ -66,6 +92,7 @@ export default function AdminPaymentsPage() {
   const refunded = payments.filter((payment) => payment.status === "REFUNDED");
   const pending = payments.filter((payment) => payment.status === "PENDING");
   const withdrawalQueue = withdrawals.filter((withdrawal) => withdrawal.status === "PENDING" || withdrawal.status === "PROCESSING");
+  const hasFilters = Boolean(query.trim()) || status !== "ALL" || provider !== "ALL";
 
   async function reload(token: string) {
     const [paymentItems, withdrawalItems] = await Promise.all([getAdminPayments(token), getAdminWithdrawals(token)]);
@@ -73,36 +100,60 @@ export default function AdminPaymentsPage() {
     setWithdrawals(withdrawalItems);
   }
 
-  async function handleRefund(payment: AdminPayment) {
-    const token = getAccessToken();
-    if (!token || busyId) return;
-    const reason = window.prompt("Lý do hoàn tiền/dispute:", "Admin hoàn tiền theo yêu cầu hỗ trợ");
-    if (!reason) return;
+  function clearFilters() {
+    setQuery("");
+    setStatus("ALL");
+    setProvider("ALL");
+  }
 
-    setBusyId(payment.id);
+  function openRefundDialog(payment: AdminPayment) {
+    setDialogNote("Admin hoàn tiền theo yêu cầu hỗ trợ");
+    setPendingDialog({ payment, type: "refund-payment" });
+  }
+
+  function openRejectWithdrawalDialog(withdrawal: AdminWithdrawal) {
+    setDialogNote("Thông tin ngân hàng không hợp lệ");
+    setPendingDialog({ type: "reject-withdrawal", withdrawal });
+  }
+
+  function closeDialog() {
+    if (busyId) return;
+    setPendingDialog(null);
+    setDialogNote("");
+  }
+
+  async function confirmDialogAction() {
+    const token = getAccessToken();
+    if (!token || !pendingDialog || busyId || !dialogNote.trim()) return;
+
+    const targetId = pendingDialog.type === "refund-payment" ? pendingDialog.payment.id : pendingDialog.withdrawal.id;
+    setBusyId(targetId);
     setError("");
     try {
-      await refundAdminPayment(token, payment.id, reason);
+      if (pendingDialog.type === "refund-payment") {
+        await refundAdminPayment(token, pendingDialog.payment.id, dialogNote.trim());
+      } else {
+        await rejectAdminWithdrawal(token, pendingDialog.withdrawal.id, dialogNote.trim());
+      }
       await reload(token);
+      setPendingDialog(null);
+      setDialogNote("");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Không thể hoàn tiền.");
+      setError(requestError instanceof Error ? requestError.message : pendingDialog.type === "refund-payment" ? "Không thể hoàn tiền." : "Không thể từ chối yêu cầu rút tiền.");
     } finally {
       setBusyId("");
     }
   }
 
-  async function handleWithdrawalAction(id: string, action: "processing" | "paid" | "reject") {
+  async function handleWithdrawalAction(id: string, action: "processing" | "paid") {
     const token = getAccessToken();
     if (!token || busyId) return;
-    const reason = action === "reject" ? window.prompt("Lý do từ chối yêu cầu rút tiền:", "Thông tin ngân hàng không hợp lệ") : "";
-    if (action === "reject" && !reason) return;
 
     setBusyId(id);
     setError("");
     try {
       if (action === "processing") await markAdminWithdrawalProcessing(token, id);
       if (action === "paid") await markAdminWithdrawalPaid(token, id);
-      if (action === "reject") await rejectAdminWithdrawal(token, id, reason || "");
       await reload(token);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể cập nhật yêu cầu rút tiền.");
@@ -113,170 +164,189 @@ export default function AdminPaymentsPage() {
 
   return (
     <AdminLayout active="payments" searchPlaceholder="Tìm giao dịch, học viên hoặc gia sư...">
-      <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-5 py-8 md:px-10">
-        <header>
-          <h1 className="text-3xl font-black text-[var(--primary)]">Quản lý thanh toán</h1>
-          <p className="mt-2 text-sm text-[var(--on-surface-variant)]">Theo dõi thanh toán, hoàn tiền và payout của gia sư.</p>
-        </header>
+      <AdminPage>
+        <AdminPageHeader
+          description="Theo dõi thanh toán, hoàn tiền, trạng thái giữ tiền và yêu cầu rút tiền của gia sư."
+          title="Quản lý thanh toán"
+        />
 
-        {error ? <p className="rounded-lg bg-[var(--error-container)] p-3 text-sm font-semibold text-[var(--error)]">{error}</p> : null}
+        {error ? <AdminAlert>{error}</AdminAlert> : null}
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-4">
-          <Metric icon="payments" label="Tiền học đã thu" value={money(paid.reduce((sum, payment) => sum + Number(payment.amount), 0))} />
-          <Metric icon="account_balance_wallet" label="Phí nền tảng" value={money(paid.reduce((sum, payment) => sum + Number(payment.platformFeeAmount || 0), 0))} tone="secondary" />
-          <Metric icon="assignment_return" label="Đã hoàn tiền" value={money(refunded.reduce((sum, payment) => sum + Number(payment.amount), 0))} tone="tertiary" />
-          <Metric icon="pending_actions" label="Payment đang chờ" value={String(pending.length)} tone="error" />
-          <Metric icon="payments" label="Rút tiền cần xử lý" value={String(withdrawalQueue.length)} tone="secondary" />
-        </section>
+        <AdminMetricGrid>
+          <AdminMetric icon="payments" label="Tiền học đã thu" note={`${paid.length} giao dịch paid`} tone="success" value={money(paid.reduce((sum, payment) => sum + Number(payment.amount), 0))} />
+          <AdminMetric icon="account_balance_wallet" label="Phí nền tảng" note="Theo payment paid" tone="warning" value={money(paid.reduce((sum, payment) => sum + Number(payment.platformFeeAmount || 0), 0))} />
+          <AdminMetric icon="assignment_return" label="Đã hoàn tiền" note={`${refunded.length} giao dịch`} tone="info" value={money(refunded.reduce((sum, payment) => sum + Number(payment.amount), 0))} />
+          <AdminMetric icon="pending_actions" label="Cần xử lý" note={`${pending.length} pending · ${withdrawalQueue.length} rút tiền`} tone="danger" value={pending.length + withdrawalQueue.length} />
+        </AdminMetricGrid>
 
-        <section className="overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white shadow-sm">
-          <div className="border-b border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-5 py-4">
-            <h2 className="text-lg font-black text-[var(--primary)]">Yêu cầu rút tiền của gia sư</h2>
-            <p className="mt-1 text-sm text-[var(--on-surface-variant)]">Admin xác nhận chuyển khoản ngân hàng, hoặc từ chối để hoàn số dư về ví gia sư.</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
-              <thead className="bg-[var(--surface-container-low)] text-xs uppercase text-[var(--on-surface-variant)]">
-                <tr>
-                  <th className="px-5 py-4">Gia sư</th>
-                  <th className="px-5 py-4">Số tiền</th>
-                  <th className="px-5 py-4">Ngân hàng</th>
-                  <th className="px-5 py-4">Trạng thái</th>
-                  <th className="px-5 py-4">Ngày yêu cầu</th>
-                  <th className="px-5 py-4 text-right">Xử lý</th>
+        <DataTable tableClassName="min-w-[980px]">
+          <DataTableHead>
+            <tr>
+              <th className="px-5 py-4" scope="col">Gia sư</th>
+              <th className="px-5 py-4" scope="col">Số tiền</th>
+              <th className="px-5 py-4" scope="col">Ngân hàng</th>
+              <th className="px-5 py-4" scope="col">Trạng thái</th>
+              <th className="px-5 py-4" scope="col">Ngày yêu cầu</th>
+              <th className="px-5 py-4 text-right" scope="col">Xử lý</th>
+            </tr>
+          </DataTableHead>
+          <DataTableBody>
+            {loading ? (
+              <AdminTableLoading colSpan={6} rows={4} />
+            ) : withdrawals.length ? (
+              withdrawals.map((withdrawal) => (
+                <tr className="transition hover:bg-[var(--surface-container-low)]" key={withdrawal.id}>
+                  <td className="px-5 py-4">
+                    <AdminUserCell avatar={<Avatar name={withdrawal.tutor.fullName} />} email={withdrawal.tutor.email} name={withdrawal.tutor.fullName} />
+                  </td>
+                  <td className="px-5 py-4 text-sm font-black tabular-nums">{money(withdrawal.amount)}</td>
+                  <td className="px-5 py-4">
+                    <p className="text-sm font-black">{withdrawal.bankName}</p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--on-surface-variant)]">{withdrawal.bankAccountName} · {withdrawal.bankAccountNumber}</p>
+                  </td>
+                  <td className="px-5 py-4">
+                    <WithdrawalStatusBadge status={withdrawal.status} />
+                  </td>
+                  <td className="px-5 py-4 text-sm font-medium">{date(withdrawal.requestedAt)}</td>
+                  <td className="px-5 py-4">
+                    <div className="flex justify-end gap-2">
+                      {withdrawal.status === "PENDING" ? (
+                        <Button disabled={busyId === withdrawal.id} onClick={() => handleWithdrawalAction(withdrawal.id, "processing")} size="sm" variant="outline">
+                          Đang xử lý
+                        </Button>
+                      ) : null}
+                      {withdrawal.status === "PENDING" || withdrawal.status === "PROCESSING" ? (
+                        <>
+                          <Button isLoading={busyId === withdrawal.id} onClick={() => handleWithdrawalAction(withdrawal.id, "paid")} size="sm">
+                            Đã chuyển
+                          </Button>
+                          <Button disabled={busyId === withdrawal.id} onClick={() => openRejectWithdrawalDialog(withdrawal)} size="sm" variant="danger">
+                            Từ chối
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--outline-variant)]/60">
-                {loading ? (
-                  <tr><td className="px-5 py-10 text-center text-sm text-[var(--on-surface-variant)]" colSpan={6}>Đang tải yêu cầu...</td></tr>
-                ) : withdrawals.length ? withdrawals.map((withdrawal) => (
-                  <tr className="hover:bg-[var(--surface-container-low)]" key={withdrawal.id}>
-                    <td className="px-5 py-4"><User name={withdrawal.tutor.fullName} email={withdrawal.tutor.email} /></td>
-                    <td className="px-5 py-4 text-sm font-black">{money(withdrawal.amount)}</td>
-                    <td className="px-5 py-4"><p className="text-sm font-bold">{withdrawal.bankName}</p><p className="text-xs text-[var(--on-surface-variant)]">{withdrawal.bankAccountName} - {withdrawal.bankAccountNumber}</p></td>
-                    <td className="px-5 py-4"><WithdrawalBadge status={withdrawal.status} /></td>
-                    <td className="px-5 py-4 text-sm">{date(withdrawal.requestedAt)}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        {withdrawal.status === "PENDING" ? <button className="rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-xs font-bold text-[var(--primary)] disabled:opacity-60" disabled={busyId === withdrawal.id} onClick={() => handleWithdrawalAction(withdrawal.id, "processing")} type="button">Đang xử lý</button> : null}
-                        {(withdrawal.status === "PENDING" || withdrawal.status === "PROCESSING") ? (
-                          <>
-                            <button className="rounded-lg bg-[var(--primary)] px-3 py-2 text-xs font-bold text-white disabled:opacity-60" disabled={busyId === withdrawal.id} onClick={() => handleWithdrawalAction(withdrawal.id, "paid")} type="button">Đã chuyển</button>
-                            <button className="whitespace-nowrap rounded-lg border border-[var(--error)]/30 px-3 py-2 text-xs font-bold text-[var(--error)] disabled:opacity-60" disabled={busyId === withdrawal.id} onClick={() => handleWithdrawalAction(withdrawal.id, "reject")} type="button">Từ chối</button>
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr><td className="px-5 py-10 text-center text-sm text-[var(--on-surface-variant)]" colSpan={6}>Chưa có yêu cầu rút tiền.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+              ))
+            ) : (
+              <AdminEmptyState colSpan={6} description="Chưa có yêu cầu rút tiền từ gia sư." title="Không có yêu cầu rút tiền" />
+            )}
+          </DataTableBody>
+        </DataTable>
 
-        <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-5 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-3">
-            <label>
-              <span className="mb-1 block text-xs font-bold text-[var(--on-surface-variant)]">Tìm kiếm</span>
-              <input className="w-full rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(event) => setQuery(event.target.value)} placeholder="Mã, học viên, gia sư..." value={query} />
-            </label>
-            <label>
-              <span className="mb-1 block text-xs font-bold text-[var(--on-surface-variant)]">Trạng thái</span>
-              <select className="w-full rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(event) => setStatus(event.target.value as StatusFilter)} value={status}>
-                <option value="ALL">Tất cả</option>
-                <option value="PENDING">Pending</option>
-                <option value="PAID">Paid</option>
-                <option value="REFUNDED">Refunded</option>
-                <option value="FAILED">Failed</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
-            </label>
-            <label>
-              <span className="mb-1 block text-xs font-bold text-[var(--on-surface-variant)]">Nhà cung cấp</span>
-              <select className="w-full rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(event) => setProvider(event.target.value as ProviderFilter)} value={provider}>
-                <option value="ALL">Tất cả</option>
-                <option value="MOCK">Mock</option>
-                <option value="VNPAY">VNPay</option>
-                <option value="MOMO">MoMo</option>
-              </select>
-            </label>
+        <AdminToolbar resultLabel={`${filtered.length}/${payments.length} giao dịch đang hiển thị`}>
+          <AdminSearchField onChange={setQuery} placeholder="Mã giao dịch, học viên, gia sư, provider..." value={query} />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <AdminSelectField<StatusFilter>
+              label="Trạng thái"
+              onChange={setStatus}
+              options={[
+                { label: "Tất cả", value: "ALL" },
+                { label: "Đang chờ", value: "PENDING" },
+                { label: "Đã thanh toán", value: "PAID" },
+                { label: "Đã hoàn tiền", value: "REFUNDED" },
+                { label: "Thất bại", value: "FAILED" },
+                { label: "Đã hủy", value: "CANCELLED" },
+              ]}
+              value={status}
+            />
+            <AdminSelectField<ProviderFilter>
+              label="Nhà cung cấp"
+              onChange={setProvider}
+              options={[
+                { label: "Tất cả", value: "ALL" },
+                { label: "Mock", value: "MOCK" },
+                { label: "VNPay", value: "VNPAY" },
+                { label: "MoMo", value: "MOMO" },
+              ]}
+              value={provider}
+            />
+            <AdminClearFiltersButton disabled={!hasFilters} onClick={clearFilters} />
           </div>
-        </section>
+        </AdminToolbar>
 
-        <section className="overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] text-left">
-              <thead className="bg-[var(--surface-container-low)] text-xs uppercase text-[var(--on-surface-variant)]">
-                <tr>
-                  <th className="px-5 py-4">Giao dịch</th>
-                  <th className="px-5 py-4">Học viên</th>
-                  <th className="px-5 py-4">Gia sư</th>
-                  <th className="px-5 py-4">Số tiền</th>
-                  <th className="px-5 py-4">Split</th>
-                  <th className="px-5 py-4">Trạng thái</th>
-                  <th className="px-5 py-4 whitespace-nowrap">Payout</th>
-                  <th className="px-5 py-4">Ngày</th>
-                  <th className="px-5 py-4 text-right">Thao tác</th>
+        <DataTable tableClassName="min-w-[1120px]">
+          <DataTableHead>
+            <tr>
+              <th className="px-5 py-4" scope="col">Giao dịch</th>
+              <th className="px-5 py-4" scope="col">Học viên</th>
+              <th className="px-5 py-4" scope="col">Gia sư</th>
+              <th className="px-5 py-4" scope="col">Số tiền</th>
+              <th className="px-5 py-4" scope="col">Split</th>
+              <th className="px-5 py-4" scope="col">Trạng thái</th>
+              <th className="px-5 py-4" scope="col">Payout</th>
+              <th className="px-5 py-4" scope="col">Ngày</th>
+              <th className="px-5 py-4 text-right" scope="col">Thao tác</th>
+            </tr>
+          </DataTableHead>
+          <DataTableBody>
+            {loading ? (
+              <AdminTableLoading colSpan={9} rows={6} />
+            ) : filtered.length ? (
+              filtered.map((payment) => (
+                <tr className="transition hover:bg-[var(--surface-container-low)]" key={payment.id}>
+                  <td className="px-5 py-4">
+                    <p className="font-black text-[var(--primary)]">#{payment.id.slice(0, 8).toUpperCase()}</p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--on-surface-variant)]">{payment.providerTxnRef || payment.provider}</p>
+                  </td>
+                  <td className="px-5 py-4">
+                    <AdminUserCell avatar={<Avatar name={payment.student.fullName} />} email={payment.student.email} name={payment.student.fullName} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <AdminUserCell avatar={<Avatar name={payment.tutor.fullName} />} email={payment.tutor.email} name={payment.tutor.fullName} />
+                  </td>
+                  <td className="px-5 py-4 text-sm font-black tabular-nums">{money(payment.amount)}</td>
+                  <td className="px-5 py-4">
+                    <p className="text-xs font-semibold text-[var(--on-surface-variant)]">Fee: {money(payment.platformFeeAmount || 0)}</p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--on-surface-variant)]">Tutor: {money(payment.tutorPayoutAmount || 0)}</p>
+                  </td>
+                  <td className="px-5 py-4">
+                    <PaymentStatusBadge status={payment.status} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <PayoutStatusBadge status={payment.payoutStatus} />
+                  </td>
+                  <td className="px-5 py-4 text-sm font-medium">{date(payment.createdAt)}</td>
+                  <td className="w-32 px-5 py-4 text-right">
+                    {payment.status === "PAID" ? (
+                      <Button className="w-28 whitespace-nowrap" disabled={busyId === payment.id} onClick={() => openRefundDialog(payment)} size="sm" variant="danger">
+                        Hoàn tiền
+                      </Button>
+                    ) : (
+                      <Link className="inline-flex min-h-11 w-28 items-center justify-center whitespace-nowrap rounded-[var(--radius-md)] border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)] hover:bg-[var(--surface-container-low)]" href={`/payments/${payment.id}`}>
+                        Xem
+                      </Link>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--outline-variant)]/60">
-                {loading ? (
-                  <tr><td className="px-5 py-10 text-center text-sm text-[var(--on-surface-variant)]" colSpan={9}>Đang tải giao dịch...</td></tr>
-                ) : filtered.length ? filtered.map((payment) => (
-                  <tr className="hover:bg-[var(--surface-container-low)]" key={payment.id}>
-                    <td className="px-5 py-4"><p className="font-black text-[var(--primary)]">#{payment.id.slice(0, 8).toUpperCase()}</p><p className="text-xs text-[var(--on-surface-variant)]">{payment.providerTxnRef || payment.provider}</p></td>
-                    <td className="px-5 py-4"><User name={payment.student.fullName} email={payment.student.email} /></td>
-                    <td className="px-5 py-4"><User name={payment.tutor.fullName} email={payment.tutor.email} /></td>
-                    <td className="px-5 py-4 text-sm font-black">{money(payment.amount)}</td>
-                    <td className="px-5 py-4"><p className="text-xs">Fee: {money(payment.platformFeeAmount || 0)}</p><p className="text-xs">Tutor: {money(payment.tutorPayoutAmount || 0)}</p></td>
-                    <td className="px-5 py-4 whitespace-nowrap"><PaymentBadge status={payment.status} /></td>
-                    <td className="px-5 py-4 whitespace-nowrap"><PayoutBadge status={payment.payoutStatus} /></td>
-                    <td className="px-5 py-4 text-sm">{date(payment.createdAt)}</td>
-                    <td className="px-5 py-4 text-right">
-                      {payment.status === "PAID" ? (
-                        <button className="whitespace-nowrap rounded-lg border border-[var(--error)]/30 px-3 py-2 text-xs font-bold text-[var(--error)] disabled:opacity-60" disabled={busyId === payment.id} onClick={() => handleRefund(payment)} type="button">Hoàn tiền</button>
-                      ) : (
-                        <Link className="inline-flex whitespace-nowrap rounded-lg border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)]" href={`/payments/${payment.id}`}>Xem</Link>
-                      )}
-                    </td>
-                  </tr>
-                )) : (
-                  <tr><td className="px-5 py-10 text-center text-sm text-[var(--on-surface-variant)]" colSpan={9}>Không có giao dịch phù hợp.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </main>
+              ))
+            ) : (
+              <AdminEmptyState
+                colSpan={9}
+                description={hasFilters ? "Không có giao dịch nào khớp với bộ lọc hiện tại." : "Chưa có giao dịch thanh toán."}
+                onAction={hasFilters ? clearFilters : undefined}
+                title={hasFilters ? "Không tìm thấy giao dịch" : "Chưa có giao dịch"}
+              />
+            )}
+          </DataTableBody>
+        </DataTable>
+
+        <AdminActionDialog
+          busy={Boolean(busyId)}
+          confirmLabel={pendingDialog?.type === "refund-payment" ? "Hoàn tiền" : "Từ chối"}
+          description={pendingDialog?.type === "refund-payment" ? "Giao dịch sẽ được gửi qua luồng hoàn tiền hiện tại. Lý do này được lưu theo API admin." : "Yêu cầu rút tiền sẽ bị từ chối và số dư được xử lý theo logic hiện tại."}
+          note={dialogNote}
+          noteLabel={pendingDialog?.type === "refund-payment" ? "Lý do hoàn tiền" : "Lý do từ chối"}
+          notePlaceholder="Nhập lý do rõ ràng để admin khác có thể audit quyết định này."
+          noteRequired
+          onCancel={closeDialog}
+          onConfirm={confirmDialogAction}
+          onNoteChange={setDialogNote}
+          open={Boolean(pendingDialog)}
+          title={pendingDialog?.type === "refund-payment" ? "Hoàn tiền giao dịch này?" : "Từ chối yêu cầu rút tiền?"}
+        />
+      </AdminPage>
     </AdminLayout>
   );
-}
-
-function Metric({ icon, label, tone = "primary", value }: { icon: string; label: string; tone?: "primary" | "secondary" | "tertiary" | "error"; value: string }) {
-  const toneClass = tone === "secondary" ? "text-[var(--secondary)]" : tone === "tertiary" ? "text-[var(--tertiary)]" : tone === "error" ? "text-[var(--error)]" : "text-[var(--primary)]";
-  return <article className="rounded-xl border border-[var(--outline-variant)] bg-white p-5 shadow-sm"><Icon className={toneClass} name={icon} /><p className="mt-2 text-sm font-semibold text-[var(--on-surface-variant)]">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></article>;
-}
-
-function User({ email, name }: { email: string; name: string }) {
-  return <div className="flex items-center gap-3"><Avatar name={name} /><div><p className="text-sm font-bold">{name}</p><p className="text-xs text-[var(--on-surface-variant)]">{email}</p></div></div>;
-}
-
-function PaymentBadge({ status }: { status: AdminPaymentStatus }) {
-  const label = status === "PAID" ? "Paid" : status === "REFUNDED" ? "Refunded" : status === "PENDING" ? "Pending" : status;
-  const color = status === "REFUNDED" ? "text-[var(--primary)] bg-[var(--primary-container)]/15" : status === "PAID" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "PENDING" ? "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40" : "text-[var(--error)] bg-[var(--error-container)]";
-  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{label}</span>;
-}
-
-function PayoutBadge({ status }: { status: AdminPayment["payoutStatus"] }) {
-  const label = status === "HELD" ? "Đang giữ" : status === "RELEASED" ? "Đã mở khóa" : status === "REFUNDED" ? "Đã hoàn" : "Đã hủy";
-  const color = status === "RELEASED" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "HELD" ? "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40" : "text-[var(--error)] bg-[var(--error-container)]";
-  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{label}</span>;
-}
-
-function WithdrawalBadge({ status }: { status: AdminWithdrawal["status"] }) {
-  const label = status === "PENDING" ? "Chờ xử lý" : status === "PROCESSING" ? "Đang xử lý" : status === "PAID" ? "Đã chuyển" : status === "REJECTED" ? "Từ chối" : "Đã hủy";
-  const color = status === "PAID" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : status === "REJECTED" || status === "CANCELLED" ? "text-[var(--error)] bg-[var(--error-container)]" : "text-[var(--secondary)] bg-[var(--secondary-fixed)]/40";
-  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{label}</span>;
 }

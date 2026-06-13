@@ -3,12 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { AuthLogo } from "@/components/auth-logo";
+import { AuthField, AuthFormCard, AuthNotice, AuthShell } from "@/components/auth/auth-shell";
+import { Button, Icon } from "@/components/ui";
 import { login } from "@/lib/api";
 import { saveTokens } from "@/lib/auth-storage";
-
-const loginImage =
-  "/login.png";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,121 +50,84 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f9f9ff] text-[#111c2d]">
-      <header className="fixed inset-x-0 top-0 z-50 flex h-20 items-center border-b border-[#c1c7d1] bg-white px-5 shadow-sm sm:px-8 lg:px-10">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between">
-          <AuthLogo />
-          <Link
-            className="rounded-lg border border-[#004271] px-4 py-2 text-sm font-semibold text-[#004271] transition hover:bg-[#d1e4ff]"
-            href="/register"
-          >
-            Đăng ký
-          </Link>
-        </div>
-      </header>
-
-      <div className="flex min-h-screen flex-col pt-20 md:flex-row">
-        <section className="relative hidden w-1/2 overflow-hidden bg-[#f0f3ff] md:block">
-          <img
-            alt="Học viên và gia sư học tập cùng nhau"
-            className="absolute inset-0 h-full w-full object-cover opacity-90"
-            src={loginImage}
+    <AuthShell
+      asideDescription="Tiếp tục quản lý lịch học, tin nhắn và hồ sơ gia sư trong một không gian rõ ràng cho học viên, phụ huynh và gia sư."
+      asideTitle="Chào mừng trở lại TutorConnect"
+      headerAction={
+        <Link
+          className="inline-flex min-h-11 items-center rounded-[var(--radius-md)] border border-[var(--outline-variant)] px-4 py-2 text-sm font-bold text-[var(--primary)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-container-low)] focus:shadow-[var(--focus-ring)] focus:outline-none"
+          href="/register"
+        >
+          Tạo tài khoản
+        </Link>
+      }
+    >
+      <AuthFormCard
+        description="Dùng email đã đăng ký để vào khu vực học viên, gia sư hoặc quản trị viên."
+        title="Đăng nhập"
+      >
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <AuthField
+            autoComplete="email"
+            label="Email"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="ban@example.com"
+            required
+            type="email"
+            value={email}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#f9f9ff]/85 to-transparent" />
-          <div className="absolute right-10 bottom-12 left-10">
-            <div className="rounded-xl border border-[#c1c7d1]/40 bg-white/90 p-6 shadow-sm backdrop-blur">
-              <h1 className="mb-2 text-3xl font-bold text-[#00497c]">
-                Chào mừng trở lại
-              </h1>
-              <p className="text-lg leading-8 text-[#414750]">
-                Tiếp tục quản lý lịch học, hồ sơ gia sư và các kết nối học tập
-                của bạn trên TutorConnect.
-              </p>
-            </div>
-          </div>
-        </section>
 
-        <section className="flex w-full items-center justify-center bg-white p-6 md:w-1/2 lg:p-10">
-          <div className="w-full max-w-md">
-            <div className="mb-6">
-              <h2 className="mb-1 text-3xl font-bold text-[#111c2d]">
-                Đăng nhập
-              </h2>
-              <p className="text-base text-[#414750]">
-                Sử dụng tài khoản học sinh, gia sư hoặc quản trị viên.
-              </p>
-            </div>
-
-            <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[#414750]">
-                  Email
-                </span>
-                <input
-                  autoComplete="email"
-                  className="w-full rounded-lg border border-[#c1c7d1] bg-[#f9f9ff] px-4 py-3 text-base outline-none transition focus:border-[#004271] focus:ring-2 focus:ring-[#d1e4ff]"
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="example@email.com"
-                  required
-                  type="email"
-                  value={email}
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[#414750]">
-                  Mật khẩu
-                </span>
-                <div className="relative">
-                  <input
-                    autoComplete="current-password"
-                    className="w-full rounded-lg border border-[#c1c7d1] bg-[#f9f9ff] px-4 py-3 pr-20 text-base outline-none transition focus:border-[#004271] focus:ring-2 focus:ring-[#d1e4ff]"
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Nhập mật khẩu"
-                    required
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                  />
-                  <button
-                    className="absolute top-1/2 right-3 -translate-y-1/2 text-sm font-semibold text-[#004271]"
-                    onClick={() => setShowPassword((value) => !value)}
-                    type="button"
-                  >
-                    {showPassword ? "Ẩn" : "Hiện"}
-                  </button>
-                </div>
-              </label>
-
-              <div className="text-right">
-                <Link className="text-sm font-semibold text-[#004271] transition hover:underline" href="/auth/forgot-password">
-                  Quên mật khẩu?
-                </Link>
-              </div>
-
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-bold text-[var(--on-surface)]">Mật khẩu</span>
+            <div className="relative">
+              <input
+                autoComplete="current-password"
+                className="min-h-12 w-full rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-4 py-3 pr-24 text-base text-[var(--on-surface)] outline-none transition focus:border-[var(--primary)] focus:shadow-[var(--focus-ring)]"
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Nhập mật khẩu"
+                required
+                type={showPassword ? "text" : "password"}
+                value={password}
+              />
               <button
-                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#004271] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#001d35] disabled:opacity-60"
-                disabled={isSubmitting}
-                type="submit"
+                aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                className="absolute top-1/2 right-2 inline-flex min-h-11 -translate-y-1/2 items-center gap-1 rounded-[var(--radius-md)] px-2 text-sm font-bold text-[var(--primary)] transition hover:bg-[var(--surface-container-low)] focus:shadow-[var(--focus-ring)] focus:outline-none"
+                onClick={() => setShowPassword((value) => !value)}
+                type="button"
               >
-                {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
-                <span aria-hidden="true">→</span>
+                <Icon className="text-[18px]" name={showPassword ? "visibility_off" : "visibility"} />
+                {showPassword ? "Ẩn" : "Hiện"}
               </button>
-            </form>
+            </div>
+          </label>
 
-            {error ? <p className="mt-4 text-sm text-[#ba1a1a]">{error}</p> : null}
-
-            <p className="mt-6 text-center text-base text-[#414750]">
-              Chưa có tài khoản?{" "}
-              <Link
-                className="font-medium text-[#004271] transition hover:underline"
-                href="/register"
-              >
-                Đăng ký ngay
-              </Link>
-            </p>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-[var(--on-surface-variant)]">Bảo mật tài khoản sau mỗi buổi học.</span>
+            <Link className="shrink-0 font-bold text-[var(--primary)] hover:underline" href="/auth/forgot-password">
+              Quên mật khẩu?
+            </Link>
           </div>
-        </section>
-      </div>
-    </main>
+
+          <Button
+            className="w-full"
+            isLoading={isSubmitting}
+            rightIcon={<Icon className="text-[18px]" name="arrow_forward" />}
+            size="lg"
+            type="submit"
+          >
+            {isSubmitting ? "Đang đăng nhập" : "Đăng nhập"}
+          </Button>
+        </form>
+
+        {error ? <AuthNotice>{error}</AuthNotice> : null}
+
+        <p className="mt-6 text-center text-sm leading-6 text-[var(--on-surface-variant)]">
+          Chưa có tài khoản?{" "}
+          <Link className="font-bold text-[var(--primary)] hover:underline" href="/register">
+            Đăng ký để tìm gia sư hoặc nhận lớp
+          </Link>
+        </p>
+      </AuthFormCard>
+    </AuthShell>
   );
 }

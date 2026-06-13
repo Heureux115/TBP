@@ -1,9 +1,11 @@
 ﻿"use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { RoleDashboardShell } from "@/components/layouts/role-dashboard-shell";
+import { ConfirmDialog } from "@/components/ui";
 import { getCurrentUser, PublicUser } from "@/lib/api";
 import { clearTokens, getAccessToken } from "@/lib/auth-storage";
 import { Booking, BookingStatus, cancelBooking, confirmBooking, getMyBookings } from "@/lib/booking-api";
@@ -35,7 +37,7 @@ const statusClasses: Record<BookingStatus, string> = {
 };
 
 function Icon({ name, fill = false, className = "" }: { name: string; fill?: boolean; className?: string }) {
-  return <span className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>{name}</span>;
+  return <span aria-hidden="true" className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>{name}</span>;
 }
 
 function formatMoney(value: string | null | undefined) {
@@ -115,6 +117,8 @@ export default function BookingsPage() {
   const [busyId, setBusyId] = useState("");
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
+  const [deleteSlotTarget, setDeleteSlotTarget] = useState<TutorAvailabilitySlot | null>(null);
 
   useEffect(() => {
     if (!hasMounted) return;
@@ -214,20 +218,20 @@ export default function BookingsPage() {
     }
   }
 
-  async function handleCancel(booking: Booking) {
+  function handleCancel(booking: Booking) {
+    setCancelTarget(booking);
+  }
+
+  async function confirmCancelBooking() {
     const token = getAccessToken();
-    if (!token) return;
-    const payment = payments[booking.id] || booking.payment;
+    if (!token || !cancelTarget) return;
 
-    if (payment?.status === "PAID" && !window.confirm("Lịch này đã thanh toán. Hủy lịch sẽ hoàn tiền cho học sinh. Tiếp tục?")) {
-      return;
-    }
-
-    setBusyId(booking.id);
+    setBusyId(cancelTarget.id);
     setError("");
     try {
-      await cancelBooking(token, booking.id, "Người dùng yêu cầu hủy từ trang quản lý lịch học.");
+      await cancelBooking(token, cancelTarget.id, "Người dùng yêu cầu hủy từ trang quản lý lịch học.");
       await reload(token);
+      setCancelTarget(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể hủy lịch học.");
     } finally {
@@ -278,18 +282,26 @@ export default function BookingsPage() {
 
   async function handleDeleteAvailability(slotId: string) {
     const token = getAccessToken();
-    if (!token) return;
+    if (!token) return false;
 
     setAvailabilityBusy(true);
     setError("");
     try {
       await deleteTutorAvailabilitySlot(token, slotId);
       await Promise.all([reload(token), reloadAvailability(token, slotDate)]);
+      return true;
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể xóa lịch dạy.");
+      return false;
     } finally {
       setAvailabilityBusy(false);
     }
+  }
+
+  async function confirmDeleteAvailability() {
+    if (!deleteSlotTarget) return;
+    const deleted = await handleDeleteAvailability(deleteSlotTarget.id);
+    if (deleted) setDeleteSlotTarget(null);
   }
 
   if (!hasMounted || (isLoading && !user)) {
@@ -298,8 +310,8 @@ export default function BookingsPage() {
 
   return (
     <RoleDashboardShell active="bookings" role={isTutor ? "tutor" : "student"}>
-      <main className="min-h-screen px-5 py-8 md:px-10">
-        <div className="mx-auto flex max-w-[1280px] flex-col gap-8">
+      <main className="min-h-screen">
+        <div className="flex w-full flex-col gap-8">
           <header className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <h1 className="text-3xl font-black text-[var(--primary)]">{isTutor ? "Tổng quan lịch dạy" : "Lịch học của tôi"}</h1>
@@ -325,7 +337,7 @@ export default function BookingsPage() {
               occurrences={slotOccurrences}
               onCreate={handleCreateAvailability}
               onDateChange={setSlotDate}
-              onDelete={handleDeleteAvailability}
+              onDelete={(slot) => setDeleteSlotTarget(slot)}
               onEndChange={setSlotEnd}
               onOccurrencesChange={setSlotOccurrences}
               onRepeatChange={setSlotRepeat}
@@ -349,6 +361,32 @@ export default function BookingsPage() {
             <StudentBookingsView bookings={filteredBookings} payments={payments} busyId={busyId} isLoading={isLoading} onCancel={handleCancel} onMessage={handleMessage} onPay={handlePay} />
           )}
         </div>
+        <ConfirmDialog
+          confirmLabel="Hủy lịch học"
+          description={
+            cancelTarget && (payments[cancelTarget.id] || cancelTarget.payment)?.status === "PAID"
+              ? "Lịch này đã thanh toán. Hủy lịch có thể hoàn tiền cho học viên và cập nhật thanh toán liên quan."
+              : "Lịch học sẽ bị hủy và không còn hiển thị như một buổi học sắp tới."
+          }
+          isBusy={Boolean(cancelTarget && busyId === cancelTarget.id)}
+          onCancel={() => setCancelTarget(null)}
+          onConfirm={confirmCancelBooking}
+          open={Boolean(cancelTarget)}
+          title="Hủy lịch học này?"
+        />
+        <ConfirmDialog
+          confirmLabel={deleteSlotTarget?.isBooked ? "Hủy khung giờ" : "Xóa khung giờ"}
+          description={
+            deleteSlotTarget?.isBooked
+              ? "Khung giờ này đã có học viên đặt. Xóa lịch sẽ hủy booking và cập nhật thanh toán liên quan theo logic hiện tại."
+              : "Khung giờ trống này sẽ không còn xuất hiện cho học viên đặt lịch."
+          }
+          isBusy={availabilityBusy}
+          onCancel={() => setDeleteSlotTarget(null)}
+          onConfirm={confirmDeleteAvailability}
+          open={Boolean(deleteSlotTarget)}
+          title={deleteSlotTarget?.isBooked ? "Hủy khung giờ đã có booking?" : "Xóa khung giờ trống?"}
+        />
       </main>
     </RoleDashboardShell>
   );
@@ -376,7 +414,7 @@ function AvailabilityManager({
   occurrences: number;
   onCreate: () => void;
   onDateChange: (value: string) => void;
-  onDelete: (slotId: string) => void;
+  onDelete: (slot: TutorAvailabilitySlot) => void;
   onEndChange: (value: string) => void;
   onOccurrencesChange: (value: number) => void;
   onRepeatChange: (value: AvailabilityRepeat) => void;
@@ -429,7 +467,7 @@ function AvailabilityManager({
           Số lần
           <input className="rounded-lg border border-[var(--outline-variant)] bg-[var(--surface)] px-3 py-2.5 text-sm font-semibold normal-case text-[var(--on-surface)]" disabled={repeat === "NONE"} max={24} min={1} onChange={(event) => onOccurrencesChange(Number(event.target.value) || 1)} type="number" value={repeat === "NONE" ? 1 : occurrences} />
         </label>
-        <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-sm font-black text-white shadow-sm disabled:opacity-60 md:self-end" disabled={busy} onClick={onCreate} type="button">
+          <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-sm font-black text-white shadow-sm disabled:opacity-60 md:self-end" disabled={busy} onClick={onCreate} type="button">
           <Icon name="add" />
           {repeat === "NONE" ? "Thêm lịch trống" : "Tạo lịch cố định"}
         </button>
@@ -437,7 +475,7 @@ function AvailabilityManager({
 
       <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleSlots.length ? (
-          visibleSlots.map((slot) => <AvailabilitySlotCard busy={busy} key={slot.id} onDelete={() => onDelete(slot.id)} slot={slot} />)
+          visibleSlots.map((slot) => <AvailabilitySlotCard busy={busy} key={slot.id} onDelete={() => onDelete(slot)} slot={slot} />)
         ) : (
           <p className="rounded-xl border border-dashed border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-5 text-sm font-semibold text-[var(--on-surface-variant)] md:col-span-2 xl:col-span-3">
             Chưa có khung giờ trống. Hãy thêm lịch dạy để học viên có thể đặt lớp.
@@ -465,14 +503,9 @@ function AvailabilitySlotCard({ busy, onDelete, slot }: { busy: boolean; onDelet
         </span>
       </div>
       <button
-        className="whitespace-nowrap rounded-lg border border-[var(--error)]/30 px-3 py-2 text-sm font-black text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-[var(--error)]/30 px-3 py-2 text-sm font-black text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-50"
         disabled={busy}
-        onClick={() => {
-          if (booked && !window.confirm("Lịch này đã có học viên đặt. Xóa lịch sẽ hủy booking và cập nhật thanh toán liên quan. Tiếp tục?")) {
-            return;
-          }
-          onDelete();
-        }}
+        onClick={onDelete}
         type="button"
       >
         {booked ? "Hủy lịch" : "Xóa"}
@@ -563,7 +596,7 @@ function StudentBookingCard({ booking, busy, onCancel, onMessage, onPay, payment
   const cancellable = booking.status !== "CANCELLED" && booking.status !== "COMPLETED";
 
   return (
-    <article className={`relative flex flex-col gap-5 overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm transition hover:-translate-y-1 ${booking.status === "CANCELLED" ? "opacity-60 grayscale" : ""}`}>
+    <article className={`relative flex flex-col gap-5 overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm transition-colors hover:bg-[var(--surface-container-lowest)] ${booking.status === "CANCELLED" ? "opacity-60 grayscale" : ""}`}>
       <div className={`absolute right-0 top-0 h-full w-2 ${paid ? "bg-[var(--primary-container)]" : "bg-[var(--secondary-container)]"}`} />
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
@@ -585,11 +618,11 @@ function StudentBookingCard({ booking, busy, onCancel, onMessage, onPay, payment
       </div>
       <div className="mt-auto flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div className="flex flex-wrap gap-2">
-          <button className="inline-flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={busy} onClick={onMessage} type="button"><Icon className="text-sm" name="chat" />Nhắn tin</button>
-          <Link className="rounded-lg border border-[var(--primary)] px-4 py-2 text-sm font-bold text-[var(--primary)]" href={`/bookings/${booking.id}`}>Chi tiết</Link>
-          {!paid && booking.status === "CONFIRMED" ? <button className="rounded-lg bg-[var(--secondary-container)] px-4 py-2 text-sm font-bold text-[var(--on-secondary-container)] disabled:opacity-60" disabled={busy} onClick={onPay} type="button">Thanh toán</button> : null}
+          <button className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={busy} onClick={onMessage} type="button"><Icon className="text-sm" name="chat" />Nhắn tin</button>
+          <Link className="inline-flex min-h-11 items-center rounded-lg border border-[var(--primary)] px-4 py-2 text-sm font-bold text-[var(--primary)]" href={`/bookings/${booking.id}`}>Chi tiết</Link>
+          {!paid && booking.status === "CONFIRMED" ? <button className="inline-flex min-h-11 items-center rounded-lg bg-[var(--secondary-container)] px-4 py-2 text-sm font-bold text-[var(--on-secondary-container)] disabled:opacity-60" disabled={busy} onClick={onPay} type="button">Thanh toán</button> : null}
         </div>
-        {cancellable ? <button className="text-sm font-bold text-[var(--error)] hover:underline disabled:opacity-60" disabled={busy} onClick={onCancel} type="button">Hủy lịch</button> : null}
+        {cancellable ? <button className="inline-flex min-h-11 items-center text-sm font-bold text-[var(--error)] hover:underline disabled:opacity-60" disabled={busy} onClick={onCancel} type="button">Hủy lịch</button> : null}
       </div>
     </article>
   );
@@ -609,7 +642,7 @@ function RequestCard({ booking, busy, onConfirm }: { booking: Booking; busy: boo
         <p className="flex items-center gap-2"><Icon className="text-base" name="event" />{formatDate(booking.startsAt)}</p>
         <p className="flex items-center gap-2"><Icon className="text-base" name="schedule" />{formatTimeRange(booking)}</p>
       </div>
-      <button className="w-full rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={busy} onClick={onConfirm} type="button">
+      <button className="min-h-11 w-full rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={busy} onClick={onConfirm} type="button">
         {busy ? "Đang xác nhận..." : "Xác nhận đặt lịch"}
       </button>
     </article>
@@ -617,7 +650,7 @@ function RequestCard({ booking, busy, onConfirm }: { booking: Booking; busy: boo
 }
 
 function FilterButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return <button className={`rounded-lg px-4 py-2 text-sm font-bold ${active ? "bg-white text-[var(--primary)] shadow-sm" : "text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-highest)]"}`} onClick={onClick} type="button">{label}</button>;
+  return <button className={`min-h-11 rounded-lg px-4 py-2 text-sm font-bold ${active ? "bg-white text-[var(--primary)] shadow-sm" : "text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-highest)]"}`} onClick={onClick} type="button">{label}</button>;
 }
 
 function Metric({ accent = "primary", icon, label, note, value }: { accent?: "primary" | "tertiary" | "secondary" | "error"; icon: string; label: string; note: string; value: string }) {
@@ -681,7 +714,7 @@ function TimeSelect({ onChange, value }: { onChange: (value: string) => void; va
   }
 
   return (
-    <div className="grid h-[42px] w-full grid-cols-[1fr_auto_1fr] items-center gap-1 rounded-lg border border-[var(--outline-variant)] bg-[var(--surface)] px-2 focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/15">
+    <div className="grid min-h-11 w-full grid-cols-[1fr_auto_1fr] items-center gap-1 rounded-lg border border-[var(--outline-variant)] bg-[var(--surface)] px-2 py-1 focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/15">
       <TimePartInput
         label="Giờ"
         onChange={(nextValue) => updatePart("hour", nextValue)}
@@ -719,10 +752,10 @@ function TimePartInput({
   value: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center justify-center gap-1">
+    <div className="flex min-w-0 items-center justify-center gap-1.5">
       <input
         aria-label={label}
-        className="h-8 w-10 rounded border-0 bg-white text-center text-sm font-black tabular-nums text-[var(--on-surface)] outline-none focus:ring-0"
+        className="h-10 w-12 rounded border-0 bg-white text-center text-sm font-black tabular-nums text-[var(--on-surface)] outline-none focus:ring-0"
         inputMode="numeric"
         maxLength={2}
         onChange={(event) => onChange(event.target.value)}
@@ -730,11 +763,11 @@ function TimePartInput({
         onKeyDown={onKeyDown}
         value={value}
       />
-      <div className="flex flex-col">
-        <button aria-label={`Tăng ${label.toLowerCase()}`} className="flex h-4 w-5 items-center justify-center rounded text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" onClick={onIncrement} type="button">
+      <div className="flex gap-1">
+        <button aria-label={`Tăng ${label.toLowerCase()}`} className="flex h-10 w-8 items-center justify-center rounded-md text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] focus:shadow-[var(--focus-ring)] focus:outline-none" onClick={onIncrement} type="button">
           <Icon className="text-[16px] leading-none" name="keyboard_arrow_up" />
         </button>
-        <button aria-label={`Giảm ${label.toLowerCase()}`} className="flex h-4 w-5 items-center justify-center rounded text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]" onClick={onDecrement} type="button">
+        <button aria-label={`Giảm ${label.toLowerCase()}`} className="flex h-10 w-8 items-center justify-center rounded-md text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] focus:shadow-[var(--focus-ring)] focus:outline-none" onClick={onDecrement} type="button">
           <Icon className="text-[16px] leading-none" name="keyboard_arrow_down" />
         </button>
       </div>
@@ -769,7 +802,11 @@ function Avatar({ name, small = false, src }: { name: string; small?: boolean; s
   const size = small ? "h-10 w-10 text-sm" : "h-14 w-14 text-xl";
   const showImage = Boolean(src) && !imageFailed;
 
-  return <div className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-fixed)] font-black text-[var(--primary)]`}>{showImage ? <img alt={name} className="h-full w-full object-cover" onError={() => setImageFailed(true)} src={src || ""} /> : initial}</div>;
+  return (
+    <div className={`${size} relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-fixed)] font-black text-[var(--primary)]`}>
+      {showImage ? <Image alt={name} className="object-cover" fill onError={() => setImageFailed(true)} sizes={small ? "40px" : "56px"} src={src || ""} unoptimized /> : initial}
+    </div>
+  );
 }
 
 function EmptyState({ text }: { text: string }) {
@@ -777,7 +814,7 @@ function EmptyState({ text }: { text: string }) {
 }
 
 function BookingsSkeleton() {
-  return <main className="min-h-screen bg-[var(--surface)] px-5 py-8 md:px-10"><section className="mx-auto min-h-[540px] max-w-[1280px] rounded-xl border border-[var(--outline-variant)] bg-white" /></main>;
+  return <main className="min-h-screen bg-[var(--surface)] px-5 py-8 md:px-10"><section className="min-h-[540px] w-full rounded-xl border border-[var(--outline-variant)] bg-white" /></main>;
 }
 
 function toPaymentMap(items: Payment[]) {

@@ -10,7 +10,6 @@ import {
   getSubjects,
   submitTutorVerification,
   updateTutorProfile,
-  uploadTutorAvatar,
   uploadTutorDocumentFile,
   type Subject,
   type SubjectLevel,
@@ -103,8 +102,6 @@ export default function TutorOnboardingPage() {
     degree: null,
     certificate: null,
   });
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [existingDocuments, setExistingDocuments] = useState<TutorDocument[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -138,7 +135,6 @@ export default function TutorOnboardingPage() {
         setCity(profile.locationCity || "");
         setDistrict(profile.locationDistrict || "");
         setExistingDocuments(profile.documents);
-        setAvatarPreview(profile.avatarUrl);
         setSubjects(
           profile.subjects.map((item) => ({
             id: item.id,
@@ -224,12 +220,6 @@ export default function TutorOnboardingPage() {
     }));
   }
 
-  function updateAvatar(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] || null;
-    setAvatarFile(file);
-    setAvatarPreview(file ? URL.createObjectURL(file) : null);
-  }
-
   function clearDocument(key: DocumentKey) {
     setDocuments((current) => ({
       ...current,
@@ -262,11 +252,6 @@ export default function TutorOnboardingPage() {
           level: subject.level,
         })),
       });
-      if (avatarFile) {
-        const profile = await uploadTutorAvatar(token, avatarFile);
-        setAvatarPreview(profile.avatarUrl);
-        setAvatarFile(null);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể lưu hồ sơ.");
       throw err;
@@ -363,14 +348,12 @@ export default function TutorOnboardingPage() {
                 experienceYears={experienceYears}
                 headline={headline}
                 hourlyRate={hourlyRate}
-                avatarPreview={avatarPreview}
                 setBio={setBio}
                 setCity={setCity}
                 setDistrict={setDistrict}
                 setExperienceYears={setExperienceYears}
                 setHeadline={setHeadline}
                 setHourlyRate={setHourlyRate}
-                updateAvatar={updateAvatar}
                 setTeachingMode={setTeachingMode}
                 teachingMode={teachingMode}
               />
@@ -531,7 +514,6 @@ function SubmittedState() {
 }
 
 function ProfileStep({
-  avatarPreview,
   bio,
   city,
   district,
@@ -546,9 +528,7 @@ function ProfileStep({
   setHourlyRate,
   setTeachingMode,
   teachingMode,
-  updateAvatar,
 }: {
-  avatarPreview: string | null;
   bio: string;
   city: string;
   district: string;
@@ -563,7 +543,6 @@ function ProfileStep({
   setHourlyRate: (value: string) => void;
   setTeachingMode: (value: TeachingMode) => void;
   teachingMode: TeachingMode;
-  updateAvatar: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -572,21 +551,6 @@ function ProfileStep({
         <p className="mt-1 text-sm text-[var(--on-surface-variant)]">
           Thông tin này sẽ là phần đầu tiên học viên nhìn thấy khi xem hồ sơ của bạn.
         </p>
-      </div>
-
-      <div className="flex flex-col items-center gap-4 rounded-lg bg-[var(--surface-container-low)] p-5 sm:flex-row">
-        <label className="relative flex h-24 w-24 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-[var(--outline-variant)] bg-white text-3xl text-[var(--outline)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]">
-          {avatarPreview ? (
-            <img alt="Ảnh đại diện gia sư" className="h-full w-full object-cover" src={avatarPreview} />
-          ) : (
-            "+"
-          )}
-          <input accept="image/*" className="absolute inset-0 opacity-0" onChange={updateAvatar} type="file" />
-        </label>
-        <div className="text-center sm:text-left">
-          <p className="font-semibold">Ảnh đại diện</p>
-          <p className="text-sm text-[var(--on-surface-variant)]">Định dạng JPG, PNG. Dung lượng tối đa 5MB.</p>
-        </div>
       </div>
 
       <InputField label="Tiêu đề hồ sơ" onChange={setHeadline} placeholder="VD: Gia sư Toán THPT chuyên luyện thi đại học" value={headline} />
@@ -733,7 +697,8 @@ function SubjectsStep({
                   </span>
                 </div>
                 <button
-                  className="rounded-full px-2 py-1 text-[var(--outline)] transition hover:bg-[var(--error-container)] hover:text-[var(--error)]"
+                  aria-label={`Xóa môn ${subject.name}`}
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-2 py-1 text-[var(--outline)] transition hover:bg-[var(--error-container)] hover:text-[var(--error)]"
                   onClick={() => removeSubject(subject.id)}
                   type="button"
                 >
@@ -783,7 +748,7 @@ function DocumentsStep({
               className="group flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-6 text-center transition hover:bg-[var(--surface-container)]"
               key={key}
             >
-              <span className="material-symbols-outlined mb-2 text-[40px] text-[var(--primary)]">description</span>
+              <span aria-hidden="true" className="material-symbols-outlined mb-2 text-[40px] text-[var(--primary)]">description</span>
               <span className="font-semibold">
                 {config.title}
                 {config.required ? <span className="text-[var(--error)]"> *</span> : null}
@@ -794,6 +759,7 @@ function DocumentsStep({
               </span>
               <input
                 accept="image/*,.pdf"
+                aria-label={`Tải ${config.title}`}
                 className="sr-only"
                 onChange={(event) => updateDocument(key, event)}
                 type="file"

@@ -6,14 +6,20 @@ import {
   Patch,
   Post,
   Req,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AuthenticatedUser } from '../auth/types/auth.types';
+import { ATTACHMENT_MAX_FILES } from '../common/file-storage';
+import type { MultipartFile } from '../common/file-storage';
+import { AddDisputeMessageDto } from './dto/add-dispute-message.dto';
 import { CreateDisputeDto } from './dto/create-dispute.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { DisputesService } from './disputes.service';
@@ -35,6 +41,22 @@ export class DisputesController {
   @Get('disputes/me')
   listMine(@Req() request: AuthenticatedRequest) {
     return this.disputesService.listMine(request.user);
+  }
+
+  @Get('disputes/:id')
+  getMine(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    return this.disputesService.getMine(request.user, id);
+  }
+
+  @Post('disputes/:id/messages')
+  @UseInterceptors(FilesInterceptor('files', ATTACHMENT_MAX_FILES))
+  addMessage(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: AddDisputeMessageDto,
+    @UploadedFiles() files: MultipartFile[] = [],
+  ) {
+    return this.disputesService.addMessage(request.user, id, dto, files);
   }
 
   @UseGuards(RolesGuard)

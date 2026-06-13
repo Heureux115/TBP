@@ -7,6 +7,7 @@ export type PublicUser = {
   email: string;
   fullName: string;
   phone: string | null;
+  avatarUrl: string | null;
   role: "STUDENT" | "TUTOR" | "ADMIN" | "SUPER_ADMIN";
   status: "PENDING_EMAIL_VERIFICATION" | "ACTIVE" | "SUSPENDED";
   emailVerifiedAt: string | null;
