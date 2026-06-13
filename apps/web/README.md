@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TutorConnect Web
 
-## Getting Started
+Đây là frontend của TutorConnect, được xây dựng bằng Next.js, React, TypeScript và Tailwind CSS.
 
-First, run the development server:
+Frontend gọi API backend tại:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```txt
+http://localhost:3001/api/v1
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Cài đặt
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Từ thư mục gốc của repo, cài dependencies:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```powershell
+npm.cmd install
+```
 
-## Learn More
+Tạo file môi trường cho web:
 
-To learn more about Next.js, take a look at the following resources:
+```powershell
+Copy-Item apps\web\.env.example apps\web\.env.local
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Nội dung mặc định:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```env
+NEXT_PUBLIC_API_URL="http://localhost:3001/api/v1"
+```
 
-## Deploy on Vercel
+## Chạy web
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Chạy backend trước:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```powershell
+npm.cmd run dev:api
+```
+
+Sau đó chạy frontend:
+
+```powershell
+npm.cmd run dev:web
+```
+
+Hoặc chạy trực tiếp workspace web:
+
+```powershell
+npm.cmd --workspace apps/web run dev
+```
+
+Mở trình duyệt tại:
+
+```txt
+http://localhost:3000
+```
+
+## Lệnh thường dùng
+
+```powershell
+npm.cmd --workspace apps/web run dev      # Chạy dev server
+npm.cmd --workspace apps/web run build    # Build production
+npm.cmd --workspace apps/web run start    # Chạy bản production đã build
+npm.cmd --workspace apps/web run lint     # Chạy ESLint
+```
+
+## Kiểm thử
+
+Chạy E2E từ thư mục gốc repo:
+
+```powershell
+npm.cmd run test:e2e
+```

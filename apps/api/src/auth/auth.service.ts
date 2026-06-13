@@ -35,6 +35,7 @@ type PublicUser = {
   email: string;
   fullName: string;
   phone: string | null;
+  avatarUrl: string | null;
   role: UserRole;
   status: UserStatus;
   emailVerifiedAt: Date | null;
@@ -81,6 +82,7 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_COST);
 
+    const verification = this.createEmailOtp();
     const user = await this.prisma.user.create({
       data: {
         email,
@@ -88,16 +90,22 @@ export class AuthService {
         fullName: dto.fullName.trim(),
         phone: dto.phone,
         role,
-        status: UserStatus.ACTIVE,
-        emailVerifiedAt: new Date(),
-        emailVerificationTokenHash: null,
-        emailVerificationTokenExpiresAt: null,
+        status: UserStatus.PENDING_EMAIL_VERIFICATION,
+        emailVerifiedAt: null,
+        emailVerificationTokenHash: this.hashToken(verification.otp),
+        emailVerificationTokenExpiresAt: verification.expiresAt,
       },
+    });
+
+    await this.emailService.sendVerificationOtp({
+      to: user.email,
+      fullName: user.fullName,
+      otp: verification.otp,
     });
 
     return {
       user: this.toPublicUser(user),
-      message: 'Account created.',
+      message: 'Verification code sent to email.',
     };
   }
 
@@ -116,6 +124,13 @@ export class AuthService {
 
     if (user.status === UserStatus.SUSPENDED) {
       throw new ForbiddenException('account is suspended');
+    }
+
+    if (
+      user.status === UserStatus.PENDING_EMAIL_VERIFICATION &&
+      !user.emailVerifiedAt
+    ) {
+      throw new ForbiddenException('email verification required');
     }
 
     const passwordMatches = await bcrypt.compare(
@@ -426,6 +441,7 @@ export class AuthService {
       email: user.email,
       fullName: user.fullName,
       phone: user.phone,
+      avatarUrl: user.avatarUrl,
       role: user.role,
       status: user.status,
       emailVerifiedAt: user.emailVerifiedAt,

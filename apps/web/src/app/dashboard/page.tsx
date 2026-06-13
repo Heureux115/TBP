@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { RoleDashboardShell } from "@/components/layouts/role-dashboard-shell";
@@ -14,7 +15,7 @@ import { useHasMounted } from "@/lib/use-has-mounted";
 
 function Icon({ name, fill = false, className = "" }: { name: string; fill?: boolean; className?: string }) {
   return (
-    <span className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>
+    <span aria-hidden="true" className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>
       {name}
     </span>
   );
@@ -177,7 +178,7 @@ export default function DashboardPage() {
         </nav>
 
         <Link
-          className="mx-4 mb-8 inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--secondary-container)] px-4 py-3 text-sm font-bold text-[var(--on-secondary-container)] shadow-sm transition hover:scale-[1.02]"
+          className="mx-4 mb-8 inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--secondary-container)] px-4 py-3 text-sm font-bold text-[var(--on-secondary-container)] shadow-sm transition-colors hover:bg-[var(--secondary)] hover:text-[var(--on-secondary)]"
           href="/tutors"
         >
           <Icon name="add_circle" />
@@ -200,8 +201,8 @@ export default function DashboardPage() {
         </div>
       </aside>
 
-      <div className="min-h-screen px-5 py-8 md:px-10">
-        <div className="mx-auto flex max-w-[1280px] flex-col gap-8">
+      <div className="min-h-screen">
+        <div className="flex w-full flex-col gap-8">
           <header className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
               <h1 className="text-4xl font-black tracking-tight text-[var(--primary)]">Tổng quan học viên</h1>
@@ -210,10 +211,10 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <Link className="rounded-full p-2 hover:bg-[var(--surface-container-high)]" href="/messages" aria-label="Tin nhắn">
+              <Link className="inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-[var(--surface-container-high)] focus:shadow-[var(--focus-ring)] focus:outline-none" href="/messages" aria-label="Tin nhắn">
                 <Icon name="chat" />
               </Link>
-              <Link className="relative rounded-full p-2 hover:bg-[var(--surface-container-high)]" href="/payments" aria-label="Thông báo thanh toán">
+              <Link className="relative inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-[var(--surface-container-high)] focus:shadow-[var(--focus-ring)] focus:outline-none" href="/payments" aria-label="Thông báo thanh toán">
                 <Icon name="notifications" />
                 {paidCount ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--error)]" /> : null}
               </Link>
@@ -251,7 +252,7 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="mt-8 flex flex-wrap gap-3">
-                      <button className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-bold text-[var(--primary)] shadow-sm transition hover:scale-105" type="button">
+                      <button className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-bold text-[var(--primary)] shadow-sm transition-colors hover:bg-[var(--primary-fixed)]" type="button">
                         <Icon name="video_call" />
                         Vào lớp ngay
                       </button>
@@ -315,11 +316,11 @@ export default function DashboardPage() {
                   <table className="w-full min-w-[720px] text-left">
                     <thead>
                       <tr className="border-b border-[var(--outline-variant)] text-xs uppercase text-[var(--on-surface-variant)]">
-                        <th className="py-4">Gia sư</th>
-                        <th className="py-4">Môn học</th>
-                        <th className="py-4">Ngày & giờ</th>
-                        <th className="py-4">Thanh toán</th>
-                        <th className="py-4 text-right">Thao tác</th>
+                        <th className="py-4" scope="col">Gia sư</th>
+                        <th className="py-4" scope="col">Môn học</th>
+                        <th className="py-4" scope="col">Ngày & giờ</th>
+                        <th className="py-4" scope="col">Thanh toán</th>
+                        <th className="py-4 text-right" scope="col">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--outline-variant)]">
@@ -343,14 +344,14 @@ export default function DashboardPage() {
                           </td>
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2">
-                              <Link className="rounded-lg border border-[var(--primary)] px-3 py-2 text-sm font-bold text-[var(--primary)]" href={`/tutors/${booking.tutor.id}`}>
+                              <Link className="inline-flex min-h-11 items-center rounded-lg border border-[var(--primary)] px-3 py-2 text-sm font-bold text-[var(--primary)]" href={`/bookings/${booking.id}`}>
                                 Chi tiết
                               </Link>
-                              <button className="rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm font-bold text-[var(--primary)]" onClick={() => handleMessageTutor(booking.id)} type="button">
+                              <button className="inline-flex min-h-11 items-center rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm font-bold text-[var(--primary)]" onClick={() => handleMessageTutor(booking.id)} type="button">
                                 Nhắn tin
                               </button>
                               {booking.status === "CONFIRMED" && payments[booking.id]?.status !== "PAID" ? (
-                                <button className="rounded-lg bg-[var(--secondary-container)] px-3 py-2 text-sm font-bold text-[var(--on-secondary-container)]" onClick={() => handleMockPayment(booking.id)} type="button">
+                                <button className="inline-flex min-h-11 items-center rounded-lg bg-[var(--secondary-container)] px-3 py-2 text-sm font-bold text-[var(--on-secondary-container)]" onClick={() => handleMockPayment(booking.id)} type="button">
                                   Thanh toán
                                 </button>
                               ) : null}
@@ -375,7 +376,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex gap-6 overflow-x-auto pb-4">
                 {recommendedTutors.map((tutor) => (
-                  <article className="min-w-[300px] rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-5 shadow-sm transition hover:-translate-y-1" key={tutor.id}>
+                  <article className="min-w-[300px] rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-5 shadow-sm transition-colors hover:bg-[var(--surface-container)]" key={tutor.id}>
                     <div className="mb-4 flex gap-4">
                       <Avatar name={tutor.fullName} src={tutor.avatarUrl} size="lg" />
                       <div className="min-w-0">
@@ -431,7 +432,7 @@ function StudentNavItem({ href, icon, label, active = false }: { href: string; i
 function KpiCard({ icon, label, value, note, accent = "tertiary" }: { icon: string; label: string; value: string; note: string; accent?: "tertiary" | "secondary" }) {
   const color = accent === "tertiary" ? "text-[var(--tertiary)]" : "text-[var(--secondary)]";
   return (
-    <div className="rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-6 shadow-sm transition hover:-translate-y-1">
+    <div className="rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-6 shadow-sm transition-colors hover:bg-[var(--surface-container)]">
       <div className="mb-2 flex items-start justify-between">
         <p className="text-xs font-bold uppercase tracking-wide text-[var(--on-surface-variant)]">{label}</p>
         <Icon className={color} name={icon} />
@@ -463,8 +464,8 @@ function Avatar({ name, src, size = "md" }: { name: string; src?: string | null;
   const showImage = Boolean(src) && !imageFailed;
 
   return (
-    <div className={`${dimension} flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-fixed)] font-bold text-[var(--primary)]`}>
-      {showImage ? <img alt={name} className="h-full w-full object-cover" onError={() => setImageFailed(true)} src={src || ""} /> : initial}
+    <div className={`${dimension} relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-fixed)] font-bold text-[var(--primary)]`}>
+      {showImage ? <Image alt={name} className="object-cover" fill onError={() => setImageFailed(true)} sizes={size === "lg" ? "64px" : "40px"} src={src || ""} unoptimized /> : initial}
     </div>
   );
 }

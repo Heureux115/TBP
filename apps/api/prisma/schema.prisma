@@ -12,6 +12,7 @@ model User {
   passwordHash                   String?        @map("password_hash")
   fullName                       String         @map("full_name")
   phone                          String?        @unique
+  avatarUrl                      String?        @map("avatar_url")
   role                           UserRole       @default(STUDENT)
   status                         UserStatus     @default(PENDING_EMAIL_VERIFICATION)
   emailVerificationTokenHash     String?        @map("email_verification_token_hash")
@@ -32,10 +33,13 @@ model User {
   studentReviews                 Review[]       @relation("ReviewStudent")
   conversationParticipants       ConversationParticipant[]
   sentMessages                   Message[]      @relation("MessageSender")
+  messageAttachments             MessageAttachment[] @relation("MessageAttachmentUploader")
   messageDeletions               MessageDeletion[]
   notifications                  Notification[]
   openedDisputes                 Dispute[]      @relation("DisputeOpenedBy")
   resolvedDisputes               Dispute[]      @relation("DisputeResolvedBy")
+  disputeMessages                DisputeMessage[] @relation("DisputeMessageAuthor")
+  disputeAttachments             DisputeAttachment[] @relation("DisputeAttachmentUploader")
 
   @@index([passwordResetTokenHash])
   @@map("users")
@@ -312,10 +316,29 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
   deletions      MessageDeletion[]
+  attachments    MessageAttachment[]
 
   @@index([conversationId, createdAt])
   @@index([senderId])
   @@map("messages")
+}
+
+model MessageAttachment {
+  id           String         @id @default(uuid()) @db.Uuid
+  messageId    String         @map("message_id") @db.Uuid
+  uploadedById String         @map("uploaded_by_id") @db.Uuid
+  url          String
+  fileName     String         @map("file_name")
+  mimeType     String         @map("mime_type")
+  size         Int
+  kind         AttachmentKind
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  message      Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploadedBy   User           @relation("MessageAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([messageId])
+  @@index([uploadedById])
+  @@map("message_attachments")
 }
 
 model MessageDeletion {
@@ -381,12 +404,46 @@ model Dispute {
   payment       Payment       @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   openedBy      User          @relation("DisputeOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
   resolvedBy    User?         @relation("DisputeResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  messages      DisputeMessage[]
 
   @@index([bookingId])
   @@index([paymentId])
   @@index([openedById])
   @@index([status, createdAt])
   @@map("disputes")
+}
+
+model DisputeMessage {
+  id          String              @id @default(uuid()) @db.Uuid
+  disputeId   String              @map("dispute_id") @db.Uuid
+  authorId    String              @map("author_id") @db.Uuid
+  body        String
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  dispute     Dispute             @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  author      User                @relation("DisputeMessageAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  attachments DisputeAttachment[]
+
+  @@index([disputeId, createdAt])
+  @@index([authorId])
+  @@map("dispute_messages")
+}
+
+model DisputeAttachment {
+  id               String         @id @default(uuid()) @db.Uuid
+  disputeMessageId String         @map("dispute_message_id") @db.Uuid
+  uploadedById     String         @map("uploaded_by_id") @db.Uuid
+  url              String
+  fileName         String         @map("file_name")
+  mimeType         String         @map("mime_type")
+  size             Int
+  kind             AttachmentKind
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  disputeMessage   DisputeMessage @relation(fields: [disputeMessageId], references: [id], onDelete: Cascade)
+  uploadedBy       User           @relation("DisputeAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([disputeMessageId])
+  @@index([uploadedById])
+  @@map("dispute_attachments")
 }
 
 enum UserRole {
@@ -492,6 +549,11 @@ enum DisputeStatus {
   UNDER_REVIEW
   RESOLVED_REFUNDED
   REJECTED
+}
+
+enum AttachmentKind {
+  IMAGE
+  DOCUMENT
 }
 
 enum AdminAuditAction {

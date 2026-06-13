@@ -3,7 +3,7 @@
 import { ReactNode } from "react";
 import { Icon, RoleDashboardShell, type DashboardSection } from "@/components/layouts/role-dashboard-shell";
 
-type TutorShellSection = Extract<DashboardSection, "profile" | "approvals" | "dashboard" | "messages" | "payments" | "bookings">;
+type TutorShellSection = Extract<DashboardSection, "profile" | "approvals" | "dashboard" | "messages" | "payments" | "bookings" | "bookingRequests" | "reviews" | "settings">;
 
 export function DashboardShell({
   active,

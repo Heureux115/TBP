@@ -30,6 +30,13 @@ export function validateEnv() {
     );
   }
 
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.EMAIL_DEV_MODE === 'true'
+  ) {
+    throw new Error('EMAIL_DEV_MODE must be disabled in production');
+  }
+
   if (process.env.NODE_ENV === 'production') {
     const productionRequired = [
       'RESEND_API_KEY',

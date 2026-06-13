@@ -1,10 +1,16 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/types/auth.types';
+import {
+  ATTACHMENT_MAX_FILES,
+  MultipartFile,
+  saveUploadFile,
+} from '../common/file-storage';
 import { PrismaService } from '../prisma/prisma.service';
 
 const conversationInclude = {
@@ -34,6 +40,7 @@ const conversationInclude = {
     include: {
       sender: true,
       deletions: true,
+      attachments: true,
     },
   },
 } satisfies Prisma.ConversationInclude;
@@ -161,6 +168,7 @@ export class MessagesService {
       },
       include: {
         sender: true,
+        attachments: true,
       },
       orderBy: { createdAt: 'asc' },
       take: 100,
@@ -176,35 +184,52 @@ export class MessagesService {
       },
     });
 
-    return messages.map((message) => ({
-      id: message.id,
-      conversationId: message.conversationId,
-      body: message.body,
-      createdAt: message.createdAt.toISOString(),
-      sender: {
-        id: message.sender.id,
-        fullName: message.sender.fullName,
-      },
-      mine: message.senderId === user.id,
-    }));
+    return messages.map((message) => this.serializeMessage(message, user.id));
   }
 
   async sendMessage(
     user: AuthenticatedUser,
     conversationId: string,
-    body: string,
+    body = '',
+    files: MultipartFile[] = [],
   ) {
     await this.assertParticipant(user.id, conversationId);
+    const content = body.trim();
+
+    if (!content && !files.length) {
+      throw new BadRequestException('message body or attachment is required');
+    }
+
+    if (files.length > ATTACHMENT_MAX_FILES) {
+      throw new BadRequestException('too many attachments');
+    }
+
+    const attachments = await Promise.all(
+      files.map((file) => saveUploadFile(file, 'messages')),
+    );
 
     const message = await this.prisma.$transaction(async (tx) => {
       const saved = await tx.message.create({
         data: {
           conversationId,
           senderId: user.id,
-          body: body.trim(),
+          body: content,
+          attachments: attachments.length
+            ? {
+                create: attachments.map((attachment) => ({
+                  uploadedById: user.id,
+                  url: attachment.url,
+                  fileName: attachment.fileName,
+                  mimeType: attachment.mimeType,
+                  size: attachment.size,
+                  kind: attachment.kind,
+                })),
+              }
+            : undefined,
         },
         include: {
           sender: true,
+          attachments: true,
         },
       });
 
@@ -221,17 +246,7 @@ export class MessagesService {
       return saved;
     });
 
-    return {
-      id: message.id,
-      conversationId: message.conversationId,
-      body: message.body,
-      createdAt: message.createdAt.toISOString(),
-      sender: {
-        id: message.sender.id,
-        fullName: message.sender.fullName,
-      },
-      mine: true,
-    };
+    return this.serializeMessage(message, user.id);
   }
 
   async deleteMessageForMe(
@@ -316,20 +331,55 @@ export class MessagesService {
   async hideConversation(user: AuthenticatedUser, conversationId: string) {
     await this.assertParticipant(user.id, conversationId);
 
-    await this.prisma.conversationParticipant.update({
-      where: {
-        conversationId_userId: {
-          conversationId,
-          userId: user.id,
+    await this.prisma.$transaction(async (tx) => {
+      await tx.conversationParticipant.update({
+        where: {
+          conversationId_userId: {
+            conversationId,
+            userId: user.id,
+          },
         },
-      },
-      data: { hiddenAt: new Date() },
+        data: { hiddenAt: new Date() },
+      });
+
+      const messages = await tx.message.findMany({
+        where: {
+          conversationId,
+          deletedAt: null,
+          deletions: {
+            none: {
+              userId: user.id,
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      await Promise.all(
+        messages.map((message) =>
+          tx.messageDeletion.upsert({
+            where: {
+              messageId_userId: {
+                messageId: message.id,
+                userId: user.id,
+              },
+            },
+            create: {
+              messageId: message.id,
+              userId: user.id,
+            },
+            update: {
+              deletedAt: new Date(),
+            },
+          }),
+        ),
+      );
     });
 
     return { hidden: true };
   }
 
-  private async assertParticipant(userId: string, conversationId: string) {
+  async assertParticipant(userId: string, conversationId: string) {
     const participant = await this.prisma.conversationParticipant.findUnique({
       where: {
         conversationId_userId: {
@@ -342,6 +392,15 @@ export class MessagesService {
     if (!participant) {
       throw new ForbiddenException('conversation access denied');
     }
+  }
+
+  async listParticipantIds(conversationId: string) {
+    const participants = await this.prisma.conversationParticipant.findMany({
+      where: { conversationId },
+      select: { userId: true },
+    });
+
+    return participants.map((participant) => participant.userId);
   }
 
   private serializeConversation(
@@ -379,10 +438,15 @@ export class MessagesService {
       lastMessage: lastMessage
         ? {
             id: lastMessage.id,
-            body: lastMessage.body,
+            body:
+              lastMessage.body ||
+              this.attachmentSummary(lastMessage.attachments ?? []),
             createdAt: lastMessage.createdAt.toISOString(),
             senderName: lastMessage.sender.fullName,
             mine: lastMessage.senderId === userId,
+            attachments: (lastMessage.attachments ?? []).map((attachment) =>
+              this.serializeAttachment(attachment),
+            ),
           }
         : null,
       updatedAt: conversation.updatedAt.toISOString(),
@@ -498,5 +562,54 @@ export class MessagesService {
 
       return right.updatedAt.getTime() - left.updatedAt.getTime();
     });
+  }
+
+  private serializeMessage(
+    message: Prisma.MessageGetPayload<{
+      include: { sender: true; attachments: true };
+    }>,
+    userId: string,
+  ) {
+    return {
+      id: message.id,
+      conversationId: message.conversationId,
+      body: message.body,
+      createdAt: message.createdAt.toISOString(),
+      sender: {
+        id: message.sender.id,
+        fullName: message.sender.fullName,
+      },
+      mine: message.senderId === userId,
+      attachments: (message.attachments ?? []).map((attachment) =>
+        this.serializeAttachment(attachment),
+      ),
+    };
+  }
+
+  private serializeAttachment(
+    attachment: Prisma.MessageAttachmentGetPayload<object>,
+  ) {
+    return {
+      id: attachment.id,
+      url: attachment.url,
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      kind: attachment.kind,
+      createdAt: attachment.createdAt.toISOString(),
+    };
+  }
+
+  private attachmentSummary(
+    attachments: Prisma.MessageAttachmentGetPayload<object>[],
+  ) {
+    if (!attachments.length) return '';
+    const hasImage = attachments.some((attachment) => attachment.kind === 'IMAGE');
+    const hasDocument = attachments.some(
+      (attachment) => attachment.kind === 'DOCUMENT',
+    );
+    if (hasImage && hasDocument) return 'Đã gửi ảnh và tài liệu';
+    if (hasImage) return attachments.length > 1 ? 'Đã gửi ảnh' : 'Đã gửi một ảnh';
+    return attachments.length > 1 ? 'Đã gửi tài liệu' : 'Đã gửi một tài liệu';
   }
 }

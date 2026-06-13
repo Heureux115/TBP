@@ -84,16 +84,16 @@ export default function TutorDashboardPage() {
 
   return (
     <DashboardShell active="dashboard">
-      <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-5 py-8 md:px-10">
+      <div className="tc-flow-safe flex w-full flex-col gap-6">
         <header className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <h1 className="text-3xl font-bold">Tổng quan gia sư</h1>
+          <div className="min-w-0">
+            <h1 className="tc-text-safe text-2xl font-bold sm:text-3xl">Tổng quan gia sư</h1>
             <p className="mt-1 text-sm text-[var(--on-surface-variant)]">
               Theo dõi trạng thái hồ sơ, lịch dạy và hiệu suất nhận lớp.
             </p>
           </div>
           <Link
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-sm font-bold text-white shadow-sm"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-center text-sm font-bold text-white shadow-sm"
             href={status === "APPROVED" ? "/tutor/profile" : "/tutor/onboarding"}
           >
             <Icon name={status === "APPROVED" ? "visibility" : "edit"} />
@@ -103,19 +103,19 @@ export default function TutorDashboardPage() {
 
         <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 shadow-sm">
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
-            <div>
+            <div className="min-w-0">
               <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-[var(--surface-container)] px-3 py-1 text-xs font-bold text-[var(--primary)]">
                 <Icon name="verified_user" className="text-[16px]" />
                 {statusLabel[status]}
               </div>
-              <h2 className="text-2xl font-bold">{profile?.headline || "Hồ sơ gia sư của bạn"}</h2>
+              <h2 className="tc-text-safe text-xl font-bold sm:text-2xl">{profile?.headline || "Hồ sơ gia sư của bạn"}</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--on-surface-variant)]">
                 {status === "APPROVED"
                   ? "Hồ sơ đã được duyệt và có thể hiển thị công khai cho học viên."
                   : "Hoàn thiện thông tin, môn giảng dạy và tài liệu xác minh để admin duyệt hồ sơ."}
               </p>
             </div>
-            <div className="min-w-[240px]">
+            <div className="min-w-0 sm:min-w-[240px]">
               <div className="mb-2 flex justify-between text-sm font-semibold">
                 <span>Hoàn thiện hồ sơ</span>
                 <span className="text-[var(--primary)]">{completion}%</span>
@@ -127,7 +127,7 @@ export default function TutorDashboardPage() {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <section className="tc-fluid-grid gap-6">
           <Metric icon="event_available" label="Lịch sắp tới" value="0" note="Chưa có buổi dạy mới" />
           <Metric icon="payments" label="Số dư có thể rút" value={formatMoney(wallet?.availableBalance || "0")} note="Từ các buổi học đã hoàn tất" />
           <Metric icon="star" label="Đánh giá" value="-" note="Chưa có đánh giá" />
@@ -150,7 +150,8 @@ export default function TutorDashboardPage() {
             <div className="flex flex-col gap-3">
               <QuickLink href="/tutor/profile" icon="person" label="Hồ sơ gia sư" />
               <QuickLink href="/tutor/onboarding" icon="edit_document" label="Chỉnh sửa onboarding" />
-              <QuickLink href="/bookings" icon="event_available" label="Quản lý lịch dạy" />
+              <QuickLink href="/tutor/schedule" icon="event_available" label="Quản lý lịch dạy" />
+              <QuickLink href="/tutor/booking-requests" icon="fact_check" label="Yêu cầu đặt lịch" />
             </div>
           </div>
         </section>
@@ -164,9 +165,9 @@ export default function TutorDashboardPage() {
                   Doanh thu 85% của gia sư được cộng vào ví sau khi buổi học hoàn tất.
                 </p>
               </div>
-              <div className="rounded-lg bg-[var(--surface-container-low)] px-4 py-3 text-right">
+              <div className="min-w-0 rounded-lg bg-[var(--surface-container-low)] px-4 py-3 text-left sm:text-right">
                 <p className="text-xs font-bold uppercase text-[var(--outline)]">Có thể rút</p>
-                <p className="text-2xl font-black text-[var(--primary)]">{formatMoney(wallet?.availableBalance || "0")}</p>
+                <p className="tc-text-safe text-2xl font-black text-[var(--primary)]">{formatMoney(wallet?.availableBalance || "0")}</p>
               </div>
             </div>
 
@@ -177,7 +178,7 @@ export default function TutorDashboardPage() {
               <Input label="Tên chủ tài khoản" value={withdrawalForm.bankAccountName} onChange={(bankAccountName) => setWithdrawalForm((form) => ({ ...form, bankAccountName }))} placeholder="NGUYEN VAN A" />
             </div>
             <button
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-center text-sm font-bold text-white disabled:opacity-60 sm:w-auto"
               disabled={isWithdrawing}
               onClick={handleWithdrawal}
               type="button"
@@ -222,10 +223,10 @@ function maskAccount(value: string) {
 
 function Input({ label, onChange, placeholder, value }: { label: string; onChange: (value: string) => void; placeholder: string; value: string }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="mb-1 block text-xs font-bold text-[var(--on-surface-variant)]">{label}</span>
       <input
-        className="w-full rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+        className="w-full min-w-0 rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         value={value}
@@ -236,23 +237,23 @@ function Input({ label, onChange, placeholder, value }: { label: string; onChang
 
 function Metric({ icon, label, note, value }: { icon: string; label: string; note: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[var(--outline-variant)] bg-white p-5 shadow-sm">
+    <div className="min-w-0 rounded-xl border border-[var(--outline-variant)] bg-white p-5 shadow-sm">
       <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary-fixed)] text-[var(--primary)]">
         <Icon name={icon} />
       </div>
-      <p className="text-sm font-semibold text-[var(--on-surface-variant)]">{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
-      <p className="mt-2 text-xs text-[var(--on-surface-variant)]">{note}</p>
+      <p className="tc-text-safe text-sm font-semibold text-[var(--on-surface-variant)]">{label}</p>
+      <p className="tc-text-safe mt-1 text-2xl font-bold">{value}</p>
+      <p className="tc-text-safe mt-2 text-xs text-[var(--on-surface-variant)]">{note}</p>
     </div>
   );
 }
 
 function Task({ done, href, label }: { done: boolean; href: string; label: string }) {
   return (
-    <Link className="flex items-center justify-between rounded-lg border border-[var(--outline-variant)] p-4 hover:bg-[var(--surface-container-low)]" href={href}>
-      <span className="flex items-center gap-3 text-sm font-semibold">
+    <Link className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-[var(--outline-variant)] p-4 hover:bg-[var(--surface-container-low)]" href={href}>
+      <span className="flex min-w-0 items-center gap-3 text-sm font-semibold">
         <Icon name={done ? "check_circle" : "radio_button_unchecked"} fill={done} className={done ? "text-[#004a31]" : "text-[var(--outline)]"} />
-        {label}
+        <span className="tc-text-safe">{label}</span>
       </span>
       <Icon name="chevron_right" className="text-[20px] text-[var(--outline)]" />
     </Link>
@@ -261,9 +262,9 @@ function Task({ done, href, label }: { done: boolean; href: string; label: strin
 
 function QuickLink({ href, icon, label }: { href: string; icon: string; label: string }) {
   return (
-    <Link className="flex items-center gap-3 rounded-lg bg-[var(--surface-container-low)] px-4 py-3 text-sm font-bold text-[var(--primary)] hover:bg-[var(--surface-container-high)]" href={href}>
+    <Link className="flex min-w-0 items-center gap-3 rounded-lg bg-[var(--surface-container-low)] px-4 py-3 text-sm font-bold text-[var(--primary)] hover:bg-[var(--surface-container-high)]" href={href}>
       <Icon name={icon} />
-      {label}
+      <span className="tc-text-safe">{label}</span>
     </Link>
   );
 }

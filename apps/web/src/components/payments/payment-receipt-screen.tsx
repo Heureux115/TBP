@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { getCurrentUser, type PublicUser } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { getPayment, type Payment, type PaymentStatus } from "@/lib/payment-api";
+import { PageContainer } from "@/components/ui";
 import { RoleDashboardShell, type DashboardRole } from "@/components/layouts/role-dashboard-shell";
 import { useHasMounted } from "@/lib/use-has-mounted";
 
@@ -26,7 +27,7 @@ const statusTone: Record<PaymentStatus, string> = {
 };
 
 function Icon({ name, fill = false, className = "" }: { name: string; fill?: boolean; className?: string }) {
-  return <span className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>{name}</span>;
+  return <span aria-hidden="true" className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>{name}</span>;
 }
 
 function formatMoney(value: string, currency = "VND") {
@@ -104,9 +105,9 @@ export function PaymentReceiptScreen({ id }: { id: string }) {
 
   return (
     <RoleDashboardShell active="payments" role={role}>
-      <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-5 py-8 md:px-10">
-        <header className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
+      <PageContainer>
+        <header className="tc-flow-safe flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div className="min-w-0">
             <Link className="inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)] hover:underline" href={backHref}>
               <Icon name="arrow_back" />
               {backLabel}
@@ -120,18 +121,18 @@ export function PaymentReceiptScreen({ id }: { id: string }) {
           </button>
         </header>
 
-        <article className="overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white shadow-sm">
+        <article className="min-w-0 overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white shadow-sm">
           <div className="flex flex-col justify-between gap-4 bg-[var(--surface-container-low)] p-6 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-4">
+            <div className="flex min-w-0 items-center gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-white">
                 <Icon className="text-3xl" name="receipt_long" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xl font-black">TutorConnect</p>
                 <p className="text-xs font-semibold text-[var(--on-surface-variant)]">Biên nhận giao dịch chính thức</p>
               </div>
             </div>
-            <span className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold leading-none ${statusTone[payment.status]}`}>
+            <span className={`inline-flex w-fit max-w-full items-center gap-2 rounded-full px-4 py-2 text-sm font-bold leading-none ${statusTone[payment.status]}`}>
               <Icon fill name={payment.status === "PAID" ? "check_circle" : payment.status === "REFUNDED" ? "assignment_return" : payment.status === "FAILED" ? "error" : "hourglass_top"} />
               {statusLabels[payment.status]}
             </span>
@@ -141,9 +142,9 @@ export function PaymentReceiptScreen({ id }: { id: string }) {
             <ReceiptField label="Mã tham chiếu" value={`#TC-${payment.id.slice(0, 8).toUpperCase()}`} />
             <ReceiptField label="Ngày giờ" value={formatDate(paidAt)} />
             <ReceiptField label="Phương thức" value={`${payment.provider}${payment.providerTxnRef ? ` · ${payment.providerTxnRef.slice(0, 10)}` : ""}`} />
-            <div className="md:text-right">
+            <div className="min-w-0 md:text-right">
               <p className="text-xs font-bold uppercase text-[var(--on-surface-variant)]">Số tiền</p>
-              <p className="mt-1 whitespace-nowrap text-xl font-black text-[var(--primary)]">{formatMoney(payment.amount, payment.currency)}</p>
+              <p className="tc-text-safe mt-1 text-xl font-black text-[var(--primary)]">{formatMoney(payment.amount, payment.currency)}</p>
             </div>
           </div>
 
@@ -157,30 +158,30 @@ export function PaymentReceiptScreen({ id }: { id: string }) {
           </div>
 
           <div className="flex flex-col justify-between gap-5 border-t border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-6 md:flex-row md:items-center">
-            <div className="flex items-center gap-4">
+            <div className="flex min-w-0 items-center gap-4">
               <Avatar name={payment.tutor.fullName} />
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold text-[var(--on-surface-variant)]">Gia sư</p>
-                <p className="font-black text-[var(--primary)]">{payment.tutor.fullName}</p>
+                <p className="tc-text-safe font-black text-[var(--primary)]">{payment.tutor.fullName}</p>
               </div>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Link className="whitespace-nowrap rounded-lg border border-[var(--outline)] px-5 py-3 text-center text-sm font-bold text-[var(--on-surface-variant)]" href="/messages">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
+              <Link className="rounded-lg border border-[var(--outline)] px-5 py-3 text-center text-sm font-bold text-[var(--on-surface-variant)]" href="/messages">
                 Liên hệ hỗ trợ
               </Link>
-              <button className="whitespace-nowrap rounded-lg bg-[var(--primary)] px-5 py-3 text-sm font-bold text-white" onClick={() => window.print()} type="button">
+              <button className="rounded-lg bg-[var(--primary)] px-5 py-3 text-sm font-bold text-white" onClick={() => window.print()} type="button">
                 In hóa đơn
               </button>
             </div>
           </div>
         </article>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="tc-fluid-grid gap-4">
           <InfoCard icon="help_outline" title="Cần hỗ trợ?" text="Mở tin nhắn hoặc trung tâm trợ giúp nếu có vấn đề về giao dịch." />
           <InfoCard icon="security" title="Thanh toán an toàn" text="Thông tin giao dịch được lưu theo tài khoản đăng nhập." />
           <InfoCard icon="history" title="Lịch sử đầy đủ" text="Tất cả hóa đơn có thể xem lại trong mục thanh toán." />
         </div>
-      </main>
+      </PageContainer>
     </RoleDashboardShell>
   );
 }
@@ -202,23 +203,23 @@ function ReceiptField({ label, value }: { label: string; value: string }) {
 
 function LineItem({ label, note, value, muted = false, strong = false }: { label: string; note?: string; value: string; muted?: boolean; strong?: boolean }) {
   return (
-    <div className={`flex items-start justify-between gap-4 ${muted ? "text-[var(--on-surface-variant)]" : ""}`}>
+    <div className={`flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 ${muted ? "text-[var(--on-surface-variant)]" : ""}`}>
       <div className="min-w-0">
-        <p className={strong ? "text-xl font-black" : "font-semibold"}>{label}</p>
+        <p className={strong ? "tc-text-safe text-xl font-black" : "tc-text-safe font-semibold"}>{label}</p>
         {note ? <p className="text-sm text-[var(--on-surface-variant)]">{note}</p> : null}
       </div>
-      <p className={strong ? "shrink-0 whitespace-nowrap text-xl font-black text-[var(--primary)]" : "shrink-0 whitespace-nowrap font-bold"}>{value}</p>
+      <p className={strong ? "tc-text-safe text-xl font-black text-[var(--primary)] sm:text-right" : "tc-text-safe font-bold sm:text-right"}>{value}</p>
     </div>
   );
 }
 
 function InfoCard({ icon, title, text }: { icon: string; title: string; text: string }) {
   return (
-    <article className="flex gap-4 rounded-xl border border-[var(--outline-variant)] bg-white p-4 shadow-sm">
+    <article className="flex min-w-0 gap-4 rounded-xl border border-[var(--outline-variant)] bg-white p-4 shadow-sm">
       <Icon className="rounded-lg bg-[var(--primary-container)]/15 p-2 text-[var(--primary)]" name={icon} />
-      <div>
-        <p className="font-bold">{title}</p>
-        <p className="mt-1 text-sm text-[var(--on-surface-variant)]">{text}</p>
+      <div className="min-w-0">
+        <p className="tc-text-safe font-bold">{title}</p>
+        <p className="tc-text-safe mt-1 text-sm text-[var(--on-surface-variant)]">{text}</p>
       </div>
     </article>
   );
@@ -227,7 +228,7 @@ function InfoCard({ icon, title, text }: { icon: string; title: string; text: st
 function ReceiptSkeleton() {
   return (
     <main className="min-h-screen bg-[var(--surface)] px-5 py-8 md:px-10">
-      <section className="mx-auto min-h-[520px] max-w-[960px] rounded-xl border border-[var(--outline-variant)] bg-white shadow-sm" />
+      <section className="min-h-[520px] w-full rounded-xl border border-[var(--outline-variant)] bg-white shadow-sm" />
     </main>
   );
 }

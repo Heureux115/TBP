@@ -217,7 +217,7 @@ Focus: Full-stack
 - Email notifications.
 - Push/in-app notifications.
 
-### Sprint 11-12: Dashboards and Mobile
+### Sprint 11-12: Dashboards and Web QA
 
 Duration: 4 weeks  
 Focus: Full-stack + QA
@@ -225,8 +225,10 @@ Focus: Full-stack + QA
 - Student dashboard.
 - Tutor dashboard with basic earnings.
 - Admin user management.
-- React Native mobile app.
+- Web responsive role workflows.
 - Bug fixing and regression testing.
+
+Note: React Native mobile app is deferred. The current MVP scope is web-only across student, tutor, and admin roles.
 
 ### Sprint 13: Launch Readiness
 
@@ -306,4 +308,3 @@ When making future decisions, prefer the option that improves:
 - Simplicity of the MVP delivery path.
 
 Avoid decisions that add large scope before the core marketplace loop is stable.
-

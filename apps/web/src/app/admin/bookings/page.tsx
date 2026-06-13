@@ -2,9 +2,27 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AdminLayout, Avatar, Icon } from "@/components/admin/admin-layout";
+import { AdminLayout } from "@/components/admin/admin-layout";
+import {
+  AdminAlert,
+  AdminClearFiltersButton,
+  AdminEmptyState,
+  AdminMetric,
+  AdminMetricGrid,
+  AdminPage,
+  AdminPageHeader,
+  AdminSearchField,
+  AdminSelectField,
+  AdminTableLoading,
+  AdminToolbar,
+  AdminUserCell,
+  BookingStatusBadge,
+  PaymentStatusBadge,
+} from "@/components/admin/admin-ui";
+import { Avatar, DataTable, DataTableBody, DataTableHead } from "@/components/ui";
 import { AdminBooking, AdminBookingStatus, getAdminBookings } from "@/lib/admin-api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { createSearchMatcher } from "@/lib/search-text";
 
 type StatusFilter = "ALL" | AdminBookingStatus;
 
@@ -49,11 +67,11 @@ export default function AdminBookingsPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
+    const matchesQuery = createSearchMatcher(query);
     return bookings.filter((booking) => {
       const matchesStatus = status === "ALL" || booking.status === status;
-      const haystack = `${booking.id} ${booking.student.fullName} ${booking.student.email} ${booking.tutor.fullName} ${subject(booking)}`.toLowerCase();
-      return matchesStatus && (!keyword || haystack.includes(keyword));
+      const haystack = `${booking.id} ${booking.student.fullName} ${booking.student.email} ${booking.tutor.fullName} ${subject(booking)}`;
+      return matchesStatus && matchesQuery(haystack);
     });
   }, [bookings, query, status]);
 
@@ -61,100 +79,111 @@ export default function AdminBookingsPage() {
   const cancelled = bookings.filter((booking) => booking.status === "CANCELLED").length;
   const today = new Date().toDateString();
   const todayCount = bookings.filter((booking) => new Date(booking.startsAt).toDateString() === today).length;
+  const hasFilters = Boolean(query.trim()) || status !== "ALL";
+
+  function clearFilters() {
+    setQuery("");
+    setStatus("ALL");
+  }
 
   return (
     <AdminLayout active="bookings" searchPlaceholder="Tìm booking, học viên hoặc gia sư...">
-      <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-5 py-8 md:px-10">
-        <header>
-          <h1 className="text-3xl font-black text-[var(--primary)]">Quản lý booking</h1>
-          <p className="mt-2 text-sm text-[var(--on-surface-variant)]">Theo dõi trạng thái lịch học, thanh toán và các booking bị hủy.</p>
-        </header>
+      <AdminPage>
+        <AdminPageHeader
+          description="Theo dõi lịch học, trạng thái xác nhận, thanh toán và các booking bị hủy để phát hiện rủi ro vận hành."
+          title="Quản lý booking"
+        />
 
-        {error ? <p className="rounded-lg bg-[var(--error-container)] p-3 text-sm font-semibold text-[var(--error)]">{error}</p> : null}
+        {error ? <AdminAlert>{error}</AdminAlert> : null}
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-3">
-          <Metric icon="event_available" label="Booking hom nay" value={String(todayCount)} />
-          <Metric icon="cancel" label="Da huy" value={String(cancelled)} tone="error" />
-          <Metric icon="payments" label="Tiền học đã thu" value={money(String(paidRevenue))} tone="secondary" />
-        </section>
+        <AdminMetricGrid>
+          <AdminMetric icon="event_available" label="Booking hôm nay" note="Theo giờ học" tone="info" value={todayCount} />
+          <AdminMetric icon="cancel" label="Đã hủy" note="Cần theo dõi lý do" tone="danger" value={cancelled} />
+          <AdminMetric icon="payments" label="Tiền học đã thu" note="Payment paid" tone="warning" value={money(String(paidRevenue))} />
+        </AdminMetricGrid>
 
-        <section className="rounded-xl border border-[var(--outline-variant)] bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <label className="block md:w-80">
-              <span className="mb-1 block text-xs font-bold text-[var(--on-surface-variant)]">Tìm kiếm</span>
-              <input className="w-full rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(event) => setQuery(event.target.value)} placeholder="Mã booking, học viên, gia sư..." value={query} />
-            </label>
-            <label className="block md:w-56">
-              <span className="mb-1 block text-xs font-bold text-[var(--on-surface-variant)]">Trạng thái</span>
-              <select className="w-full rounded-lg border border-[var(--outline-variant)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(event) => setStatus(event.target.value as StatusFilter)} value={status}>
-                <option value="ALL">Tat ca</option>
-                <option value="PENDING">Cho gia su xac nhan</option>
-                <option value="CONFIRMED">Da xac nhan</option>
-                <option value="COMPLETED">Hoàn thành</option>
-                <option value="CANCELLED">Da huy</option>
-              </select>
-            </label>
+        <AdminToolbar resultLabel={`${filtered.length}/${bookings.length} booking đang hiển thị`}>
+          <AdminSearchField onChange={setQuery} placeholder="Mã booking, học viên, gia sư, môn học..." value={query} />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <AdminSelectField<StatusFilter>
+              label="Trạng thái"
+              onChange={setStatus}
+              options={[
+                { label: "Tất cả", value: "ALL" },
+                { label: "Chờ xác nhận", value: "PENDING" },
+                { label: "Đã xác nhận", value: "CONFIRMED" },
+                { label: "Hoàn thành", value: "COMPLETED" },
+                { label: "Đã hủy", value: "CANCELLED" },
+              ]}
+              value={status}
+            />
+            <AdminClearFiltersButton disabled={!hasFilters} onClick={clearFilters} />
           </div>
-        </section>
+        </AdminToolbar>
 
-        <section className="overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
-              <thead className="bg-[var(--surface-container-low)] text-xs uppercase text-[var(--on-surface-variant)]">
-                <tr>
-                  <th className="px-5 py-4">Booking</th>
-                  <th className="px-5 py-4">Hoc vien</th>
-                  <th className="px-5 py-4">Gia sư</th>
-                  <th className="px-5 py-4">Thoi gian</th>
-                  <th className="px-5 py-4">Thanh toán</th>
-                  <th className="px-5 py-4">Trạng thái</th>
-                  <th className="px-5 py-4 text-right">Thao tác</th>
+        <DataTable tableClassName="min-w-[1040px]">
+          <DataTableHead>
+            <tr>
+              <th className="px-5 py-4" scope="col">Booking</th>
+              <th className="px-5 py-4" scope="col">Học viên</th>
+              <th className="px-5 py-4" scope="col">Gia sư</th>
+              <th className="px-5 py-4" scope="col">Thời gian</th>
+              <th className="px-5 py-4" scope="col">Thanh toán</th>
+              <th className="px-5 py-4" scope="col">Trạng thái</th>
+              <th className="px-5 py-4 text-right" scope="col">Thao tác</th>
+            </tr>
+          </DataTableHead>
+          <DataTableBody>
+            {loading ? (
+              <AdminTableLoading colSpan={7} />
+            ) : filtered.length ? (
+              filtered.map((booking) => (
+                <tr className="transition hover:bg-[var(--surface-container-low)]" key={booking.id}>
+                  <td className="px-5 py-4">
+                    <p className="font-black text-[var(--primary)]">#{booking.id.slice(0, 8).toUpperCase()}</p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--on-surface-variant)]">{subject(booking)} · {modeLabel(booking.teachingMode)}</p>
+                  </td>
+                  <td className="px-5 py-4">
+                    <AdminUserCell avatar={<Avatar name={booking.student.fullName} />} email={booking.student.email} name={booking.student.fullName} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <AdminUserCell avatar={<Avatar name={booking.tutor.fullName} />} email={booking.tutor.email} name={booking.tutor.fullName} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <p className="text-sm font-black">{date(booking.startsAt)}</p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--on-surface-variant)]">{timeRange(booking)}</p>
+                  </td>
+                  <td className="px-5 py-4">
+                    {booking.payment ? (
+                      <div className="space-y-1">
+                        <p className="text-sm font-black tabular-nums">{money(booking.payment.amount)}</p>
+                        <PaymentStatusBadge status={booking.payment.status} />
+                      </div>
+                    ) : (
+                      <span className="text-sm font-semibold text-[var(--on-surface-variant)]">Chưa có</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-4">
+                    <BookingStatusBadge status={booking.status} />
+                  </td>
+                  <td className="px-5 py-4 text-right">
+                    <Link className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-[var(--radius-md)] border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)] hover:bg-[var(--surface-container-low)]" href={`/admin/bookings/${booking.id}`}>
+                      Xem trong admin
+                    </Link>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--outline-variant)]/60">
-                {loading ? (
-                  <tr><td className="px-5 py-10 text-center text-sm text-[var(--on-surface-variant)]" colSpan={7}>Đang tải booking...</td></tr>
-                ) : filtered.length ? filtered.map((booking) => (
-                  <tr className="hover:bg-[var(--surface-container-low)]" key={booking.id}>
-                    <td className="px-5 py-4">
-                      <p className="font-black text-[var(--primary)]">#{booking.id.slice(0, 8).toUpperCase()}</p>
-                      <p className="text-xs text-[var(--on-surface-variant)]">{subject(booking)} · {modeLabel(booking.teachingMode)}</p>
-                    </td>
-                    <td className="px-5 py-4"><User name={booking.student.fullName} email={booking.student.email} /></td>
-                    <td className="px-5 py-4"><User name={booking.tutor.fullName} email={booking.tutor.email} /></td>
-                    <td className="px-5 py-4"><p className="text-sm font-bold">{date(booking.startsAt)}</p><p className="text-xs text-[var(--on-surface-variant)]">{timeRange(booking)}</p></td>
-                    <td className="px-5 py-4"><PaymentText booking={booking} /></td>
-                    <td className="px-5 py-4"><BookingBadge status={booking.status} /></td>
-                    <td className="px-5 py-4 text-right"><Link className="inline-flex whitespace-nowrap rounded-lg border border-[var(--primary)] px-3 py-2 text-xs font-bold text-[var(--primary)]" href={`/admin/bookings?bookingId=${booking.id}`}>Xem trong admin</Link></td>
-                  </tr>
-                )) : (
-                  <tr><td className="px-5 py-10 text-center text-sm text-[var(--on-surface-variant)]" colSpan={7}>Không có booking phù hợp.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </main>
+              ))
+            ) : (
+              <AdminEmptyState
+                colSpan={7}
+                description={hasFilters ? "Không có booking nào khớp với bộ lọc hiện tại." : "Chưa có booking nào trong hệ thống."}
+                onAction={hasFilters ? clearFilters : undefined}
+                title={hasFilters ? "Không tìm thấy booking" : "Chưa có booking"}
+              />
+            )}
+          </DataTableBody>
+        </DataTable>
+      </AdminPage>
     </AdminLayout>
   );
-}
-
-function Metric({ icon, label, tone = "primary", value }: { icon: string; label: string; tone?: "primary" | "secondary" | "error"; value: string }) {
-  const toneClass = tone === "secondary" ? "text-[var(--secondary)]" : tone === "error" ? "text-[var(--error)]" : "text-[var(--primary)]";
-  return <article className="rounded-xl border border-[var(--outline-variant)] bg-white p-5 shadow-sm"><Icon className={toneClass} name={icon} /><p className="mt-2 text-sm font-semibold text-[var(--on-surface-variant)]">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></article>;
-}
-
-function User({ email, name }: { email: string; name: string }) {
-  return <div className="flex items-center gap-3"><Avatar name={name} /><div><p className="text-sm font-bold">{name}</p><p className="text-xs text-[var(--on-surface-variant)]">{email}</p></div></div>;
-}
-
-function BookingBadge({ status }: { status: AdminBookingStatus }) {
-  const label = status === "PENDING" ? "Chờ gia sư" : status === "CONFIRMED" ? "Đã xác nhận" : status === "COMPLETED" ? "Hoàn thành" : "Đã hủy";
-  const color = status === "CANCELLED" ? "text-[var(--error)] bg-[var(--error-container)]" : status === "COMPLETED" ? "text-[var(--tertiary)] bg-[var(--tertiary-fixed)]/30" : "text-[var(--primary)] bg-[var(--primary-fixed)]/40";
-  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold leading-none ${color}`}>{label}</span>;
-}
-
-function PaymentText({ booking }: { booking: AdminBooking }) {
-  if (!booking.payment) return <span className="text-sm text-[var(--on-surface-variant)]">Chưa có</span>;
-  return <div><p className="text-sm font-black">{money(booking.payment.amount)}</p><p className="text-xs text-[var(--on-surface-variant)]">{booking.payment.status}</p></div>;
 }

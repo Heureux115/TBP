@@ -9,7 +9,7 @@ import { getPayment, Payment } from "@/lib/payment-api";
 import { useHasMounted } from "@/lib/use-has-mounted";
 
 function Icon({ name, fill = false, className = "" }: { name: string; fill?: boolean; className?: string }) {
-  return <span className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>{name}</span>;
+  return <span aria-hidden="true" className={["material-symbols-outlined", fill ? "icon-fill" : "", className].join(" ")}>{name}</span>;
 }
 
 function formatMoney(value: string, currency = "VND") {

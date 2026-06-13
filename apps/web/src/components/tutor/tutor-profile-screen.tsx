@@ -1,10 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { DashboardShell, Icon } from "@/components/tutor/dashboard-shell";
 import { getAccessToken } from "@/lib/auth-storage";
 import { getMyTutorProfile, type TutorDocument, type TutorProfile, type TutorVerificationStatus } from "@/lib/tutor-api";
+
+const API_ASSET_ORIGIN = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1").replace(/\/api\/v1\/?$/, "");
+
+function resolveUploadUrl(value?: null | string) {
+  if (!value) return "";
+  if (value.startsWith("/uploads/")) return `${API_ASSET_ORIGIN}${value}`;
+  return value;
+}
 
 const statusCopy: Record<
   TutorVerificationStatus,
@@ -60,7 +69,7 @@ export function TutorProfileScreen({ initialStatus }: { initialStatus: TutorVeri
 
   return (
     <DashboardShell active="profile">
-      <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-5 py-6 md:px-10 md:py-10">
+      <div className="flex w-full flex-col gap-6">
         <header className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-normal text-[var(--on-surface)]">Hồ sơ gia sư</h1>
@@ -219,13 +228,18 @@ function IdentityCard({ profile, status }: { profile: TutorProfile; status: Tuto
   const color = status === "REJECTED" ? "bg-[var(--error)]" : status === "APPROVED" ? "bg-[var(--tertiary)]" : "bg-[var(--secondary)]";
   const location = [profile.locationDistrict, profile.locationCity].filter(Boolean).join(", ") || "Chưa cập nhật";
   const initial = profile.fullName.trim().charAt(0).toUpperCase() || "G";
-  const showAvatar = Boolean(profile.avatarUrl) && !avatarFailed;
+  const avatarSrc = resolveUploadUrl(profile.avatarUrl);
+  const showAvatar = Boolean(avatarSrc) && !avatarFailed;
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [profile.avatarUrl]);
 
   return (
     <div className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 text-center shadow-sm">
       <div className="relative mx-auto mb-4 h-32 w-32">
-        <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--surface)] bg-[var(--surface-container-highest)] text-5xl font-bold text-[var(--primary)]">
-          {showAvatar ? <img alt={profile.fullName} className="h-full w-full object-cover" onError={() => setAvatarFailed(true)} src={profile.avatarUrl || ""} /> : initial}
+        <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--surface)] bg-[var(--surface-container-highest)] text-5xl font-bold text-[var(--primary)]">
+          {showAvatar ? <Image alt={profile.fullName} className="object-cover" fill onError={() => setAvatarFailed(true)} sizes="128px" src={avatarSrc} unoptimized /> : initial}
         </div>
         <div className={`absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-white ${color}`}>
           <Icon name={status === "APPROVED" ? "verified" : status === "REJECTED" ? "priority_high" : "hourglass_empty"} fill className="text-[16px]" />

@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { FormEvent, useState } from "react";
-import { AuthLogo } from "@/components/auth-logo";
+import { AuthField, AuthFormCard, AuthNotice, AuthShell } from "@/components/auth/auth-shell";
+import { Button, Icon } from "@/components/ui";
 import { resetPassword } from "@/lib/api";
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-[#f9f9ff]" />}>
+    <Suspense fallback={<main className="min-h-screen bg-[var(--surface)]" />}>
       <ResetPasswordForm />
     </Suspense>
   );
@@ -41,61 +42,79 @@ function ResetPasswordForm() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f9f9ff] px-5 text-[#111c2d]">
-      <header className="mx-auto flex h-20 w-full max-w-7xl items-center">
-        <AuthLogo />
-      </header>
-      <section className="mx-auto mt-10 w-full max-w-md rounded-xl border border-[#c1c7d1] bg-white p-6 shadow-sm">
-        <Link className="mb-6 inline-flex text-sm font-semibold text-[#004271]" href="/auth/login">
+    <AuthShell
+      asideDescription="Sau khi đổi mật khẩu, bạn có thể đăng nhập lại để tiếp tục quản lý lịch học, thanh toán và tin nhắn."
+      asideTitle="Đặt lại mật khẩu trong vài bước"
+      headerAction={
+        <Link
+          className="inline-flex min-h-11 items-center rounded-[var(--radius-md)] border border-[var(--outline-variant)] px-4 py-2 text-sm font-bold text-[var(--primary)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-container-low)] focus:shadow-[var(--focus-ring)] focus:outline-none"
+          href="/auth/login"
+        >
+          Đăng nhập
+        </Link>
+      }
+    >
+      <AuthFormCard
+        description="Nhập mã trong email và tạo mật khẩu mới đủ mạnh cho tài khoản của bạn."
+        title="Đặt lại mật khẩu"
+      >
+        <Link className="mb-5 inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)] hover:underline" href="/auth/login">
+          <Icon className="text-[18px]" name="arrow_back" />
           Quay lại đăng nhập
         </Link>
-        <h1 className="text-3xl font-bold">Đặt lại mật khẩu</h1>
-        <p className="mt-2 text-sm leading-6 text-[#414750]">
-          Nhập mã từ email và mật khẩu mới của bạn.
-        </p>
-        <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-          <Input autoComplete="email" label="Email" onChange={setEmail} type="email" value={email} />
-          <Input label="Mã đặt lại" onChange={setToken} type="text" value={token} />
-          <Input autoComplete="new-password" label="Mật khẩu mới" onChange={setPassword} type="password" value={password} />
-          <button className="w-full rounded-lg bg-[#004271] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Đang cập nhật..." : "Đặt lại mật khẩu"}
-          </button>
-        </form>
-        {message ? (
-          <p className="mt-4 rounded-lg bg-[#eef7ee] p-3 text-sm font-semibold text-[#0f5f2f]">
-            {message} <Link className="underline" href="/auth/login">Đăng nhập</Link>
-          </p>
-        ) : null}
-        {error ? <p className="mt-4 text-sm text-[#ba1a1a]">{error}</p> : null}
-      </section>
-    </main>
-  );
-}
 
-function Input({
-  autoComplete,
-  label,
-  onChange,
-  type,
-  value,
-}: {
-  autoComplete?: string;
-  label: string;
-  onChange: (value: string) => void;
-  type: string;
-  value: string;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-[#414750]">{label}</span>
-      <input
-        autoComplete={autoComplete}
-        className="w-full rounded-lg border border-[#c1c7d1] bg-[#f9f9ff] px-4 py-3 outline-none focus:border-[#004271] focus:ring-2 focus:ring-[#d1e4ff]"
-        onChange={(event) => onChange(event.target.value)}
-        required
-        type={type}
-        value={value}
-      />
-    </label>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <AuthField
+            autoComplete="email"
+            label="Email"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="ban@example.com"
+            required
+            type="email"
+            value={email}
+          />
+          <AuthField
+            autoComplete="one-time-code"
+            helper="Mã được gửi tới email khi bạn yêu cầu đặt lại mật khẩu."
+            label="Mã đặt lại"
+            onChange={(event) => setToken(event.target.value)}
+            placeholder="Nhập mã trong email"
+            required
+            type="text"
+            value={token}
+          />
+          <AuthField
+            autoComplete="new-password"
+            helper="Ít nhất 8 ký tự, có chữ hoa, số và ký tự đặc biệt."
+            label="Mật khẩu mới"
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Password@123"
+            required
+            type="password"
+            value={password}
+          />
+
+          <Button
+            className="w-full"
+            isLoading={isSubmitting}
+            rightIcon={<Icon className="text-[18px]" name="lock_reset" />}
+            size="lg"
+            type="submit"
+          >
+            {isSubmitting ? "Đang cập nhật" : "Đặt lại mật khẩu"}
+          </Button>
+        </form>
+
+        {message ? (
+          <AuthNotice tone="success">
+            {message}{" "}
+            <Link className="font-black underline" href="/auth/login">
+              Đăng nhập
+            </Link>
+          </AuthNotice>
+        ) : null}
+        {error ? <AuthNotice>{error}</AuthNotice> : null}
+      </AuthFormCard>
+    </AuthShell>
   );
 }

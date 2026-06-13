@@ -15,6 +15,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { WalletModule } from './wallet/wallet.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DisputesModule } from './disputes/disputes.module';
+import { AccountModule } from './account/account.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { DisputesModule } from './disputes/disputes.module';
     WalletModule,
     NotificationsModule,
     DisputesModule,
+    AccountModule,
   ],
   controllers: [AppController],
   providers: [AppService],

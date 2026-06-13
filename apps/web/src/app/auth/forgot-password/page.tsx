@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { AuthLogo } from "@/components/auth-logo";
+import { AuthField, AuthFormCard, AuthNotice, AuthShell } from "@/components/auth/auth-shell";
+import { Button, Icon } from "@/components/ui";
 import { forgotPassword } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
@@ -28,44 +29,60 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f9f9ff] px-5 text-[#111c2d]">
-      <header className="mx-auto flex h-20 w-full max-w-7xl items-center">
-        <AuthLogo />
-      </header>
-      <section className="mx-auto mt-10 w-full max-w-md rounded-xl border border-[#c1c7d1] bg-white p-6 shadow-sm">
-        <Link className="mb-6 inline-flex text-sm font-semibold text-[#004271]" href="/auth/login">
+    <AuthShell
+      asideDescription="Chúng tôi chỉ gửi mã đặt lại tới email đã đăng ký, giúp bạn quay lại lịch học và tin nhắn mà không làm lộ thông tin tài khoản."
+      asideTitle="Khôi phục tài khoản an toàn"
+      headerAction={
+        <Link
+          className="inline-flex min-h-11 items-center rounded-[var(--radius-md)] border border-[var(--outline-variant)] px-4 py-2 text-sm font-bold text-[var(--primary)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-container-low)] focus:shadow-[var(--focus-ring)] focus:outline-none"
+          href="/auth/login"
+        >
+          Đăng nhập
+        </Link>
+      }
+    >
+      <AuthFormCard
+        description="Nhập email tài khoản. Nếu email tồn tại, hệ thống sẽ gửi mã đặt lại mật khẩu."
+        title="Quên mật khẩu"
+      >
+        <Link className="mb-5 inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)] hover:underline" href="/auth/login">
+          <Icon className="text-[18px]" name="arrow_back" />
           Quay lại đăng nhập
         </Link>
-        <h1 className="text-3xl font-bold">Quên mật khẩu</h1>
-        <p className="mt-2 text-sm leading-6 text-[#414750]">
-          Nhập email tài khoản để nhận mã đặt lại mật khẩu.
-        </p>
-        <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[#414750]">Email</span>
-            <input
-              autoComplete="email"
-              className="w-full rounded-lg border border-[#c1c7d1] bg-[#f9f9ff] px-4 py-3 outline-none focus:border-[#004271] focus:ring-2 focus:ring-[#d1e4ff]"
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              type="email"
-              value={email}
-            />
-          </label>
-          <button className="w-full rounded-lg bg-[#004271] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Đang gửi..." : "Gửi mã đặt lại"}
-          </button>
+
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <AuthField
+            autoComplete="email"
+            helper="Dùng đúng email đã đăng ký học viên hoặc gia sư."
+            label="Email"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="ban@example.com"
+            required
+            type="email"
+            value={email}
+          />
+
+          <Button
+            className="w-full"
+            isLoading={isSubmitting}
+            rightIcon={<Icon className="text-[18px]" name="mail" />}
+            size="lg"
+            type="submit"
+          >
+            {isSubmitting ? "Đang gửi mã" : "Gửi mã đặt lại"}
+          </Button>
         </form>
+
         {message ? (
-          <div className="mt-4 rounded-lg bg-[#eef7ee] p-3 text-sm font-semibold text-[#0f5f2f]">
+          <AuthNotice tone="success">
             {message}{" "}
-            <Link className="underline" href={`/auth/reset-password?email=${encodeURIComponent(email)}`}>
-              Nhập mã
+            <Link className="font-black underline" href={`/auth/reset-password?email=${encodeURIComponent(email)}`}>
+              Nhập mã đặt lại
             </Link>
-          </div>
+          </AuthNotice>
         ) : null}
-        {error ? <p className="mt-4 text-sm text-[#ba1a1a]">{error}</p> : null}
-      </section>
-    </main>
+        {error ? <AuthNotice>{error}</AuthNotice> : null}
+      </AuthFormCard>
+    </AuthShell>
   );
 }
