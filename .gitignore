@@ -9,6 +9,17 @@ out/
 coverage/
 apps/api/uploads/
 
+# Local agent/tooling artifacts
+.agents/
+.claude/
+.impeccable/
+
+# Local reports and generated deliverables
+playwright-report/
+test-results/
+tmp/
+output/
+
 # Environment files
 .env
 .env.*
