@@ -14,7 +14,6 @@ import { MessagesModule } from './messages/messages.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { WalletModule } from './wallet/wallet.module';
 import { NotificationsModule } from './notifications/notifications.module';
-import { DisputesModule } from './disputes/disputes.module';
 import { AccountModule } from './account/account.module';
 
 @Module({
@@ -34,7 +33,6 @@ import { AccountModule } from './account/account.module';
     ReviewsModule,
     WalletModule,
     NotificationsModule,
-    DisputesModule,
     AccountModule,
   ],
   controllers: [AppController],

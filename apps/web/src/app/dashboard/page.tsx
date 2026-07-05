@@ -101,6 +101,7 @@ export default function DashboardPage() {
   const paidCount = Object.values(payments).filter((payment) => payment.status === "PAID").length;
   const activeCount = bookings.filter((booking) => booking.status !== "CANCELLED").length;
   const learnedHours = bookings.filter((booking) => booking.status === "COMPLETED").length * 1.5;
+  const renderDeferredStudentUi = false;
 
   async function reloadBookings(token: string) {
     const [bookingItems, paymentItems] = await Promise.all([getMyBookings(token), getMyPayments(token)]);
@@ -152,7 +153,8 @@ export default function DashboardPage() {
 
   return (
     <RoleDashboardShell active="dashboard" role="student">
-      <aside className="hidden">
+      {renderDeferredStudentUi ? (
+      <>
         <div className="mb-10 px-4">
           <Link className="text-2xl font-black text-[var(--primary)]" href="/">
             TutorConnect
@@ -199,7 +201,8 @@ export default function DashboardPage() {
             Đăng xuất
           </button>
         </div>
-      </aside>
+      </>
+      ) : null}
 
       <div className="min-h-screen">
         <div className="flex w-full flex-col gap-8">
@@ -252,10 +255,10 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="mt-8 flex flex-wrap gap-3">
-                      <button className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-bold text-[var(--primary)] shadow-sm transition-colors hover:bg-[var(--primary-fixed)]" type="button">
+                      {renderDeferredStudentUi ? <button className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-bold text-[var(--primary)] shadow-sm transition-colors hover:bg-[var(--primary-fixed)]" type="button">
                         <Icon name="video_call" />
                         Vào lớp ngay
-                      </button>
+                      </button> : null}
                       <button className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-6 py-3 text-sm font-bold text-white" onClick={() => handleMessageTutor(nextBooking.id)} type="button">
                         <Icon name="mail" />
                         Nhắn tin
@@ -312,7 +315,9 @@ export default function DashboardPage() {
               {isLoading ? (
                 <p className="text-sm text-[var(--on-surface-variant)]">Đang tải lịch học...</p>
               ) : upcomingBookings.length ? (
-                <div className="overflow-x-auto">
+                <div className="relative overflow-hidden">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-white to-transparent" />
+                  <div className="overflow-x-auto">
                   <table className="w-full min-w-[720px] text-left">
                     <thead>
                       <tr className="border-b border-[var(--outline-variant)] text-xs uppercase text-[var(--on-surface-variant)]">
@@ -361,6 +366,7 @@ export default function DashboardPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               ) : (
                 <EmptyPanel />
@@ -376,7 +382,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex gap-6 overflow-x-auto pb-4">
                 {recommendedTutors.map((tutor) => (
-                  <article className="min-w-[300px] rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-5 shadow-sm transition-colors hover:bg-[var(--surface-container)]" key={tutor.id}>
+                  <article className="min-w-[min(300px,85vw)] rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-5 shadow-sm transition-colors hover:bg-[var(--surface-container)]" key={tutor.id}>
                     <div className="mb-4 flex gap-4">
                       <Avatar name={tutor.fullName} src={tutor.avatarUrl} size="lg" />
                       <div className="min-w-0">

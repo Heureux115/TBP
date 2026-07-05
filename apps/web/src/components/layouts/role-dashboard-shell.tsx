@@ -105,7 +105,9 @@ export function RoleDashboardShell({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState("");
+  const [authorizedRole, setAuthorizedRole] = useState<DashboardRole | null>(null);
   const labels = ROLE_LABELS[role];
+  const authChecked = authorizedRole === role;
 
   useEffect(() => {
     const token = getAccessToken();
@@ -122,6 +124,7 @@ export function RoleDashboardShell({
         }
 
         setUser(currentUser);
+        setAuthorizedRole(role);
         getMyNotifications(token)
           .then((result) => {
             setUnreadNotifications(result.unreadCount);
@@ -137,6 +140,7 @@ export function RoleDashboardShell({
         clearTokens();
         setUser(null);
         setProfile(null);
+        setAuthorizedRole(null);
         router.replace("/auth/login");
       });
   }, [role, router]);
@@ -229,6 +233,14 @@ export function RoleDashboardShell({
     } finally {
       setNotificationsLoading(false);
     }
+  }
+
+  if (!authChecked) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--on-surface-variant)]">
+        Đang mở không gian làm việc...
+      </main>
+    );
   }
 
   return (
@@ -333,9 +345,16 @@ export function RoleDashboardShell({
                   ) : null}
                 </button>
                 {notificationsOpen ? (
+                  <>
+                    <button
+                      aria-label="Đóng thông báo"
+                      className="fixed inset-0 z-[var(--z-dropdown)] cursor-default bg-black/10 sm:bg-transparent"
+                      onClick={() => setNotificationsOpen(false)}
+                      type="button"
+                    />
                   <section
                     aria-label="Thông báo"
-                    className="absolute right-0 top-14 z-[var(--z-dropdown)] w-[min(92vw,400px)] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] shadow-[var(--shadow-popover)]"
+                    className="absolute right-0 top-14 z-[calc(var(--z-dropdown)+1)] w-[min(92vw,400px)] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] shadow-[var(--shadow-popover)]"
                     data-testid={`${role}-notifications-panel`}
                     id={`${role}-notifications-panel`}
                   >
@@ -382,6 +401,7 @@ export function RoleDashboardShell({
                       )}
                     </div>
                   </section>
+                  </>
                 ) : null}
               </div>
               <div className="hidden h-8 w-px bg-[var(--outline-variant)] sm:block" />

@@ -224,22 +224,18 @@ function DraftEmptyCards() {
 }
 
 function IdentityCard({ profile, status }: { profile: TutorProfile; status: TutorVerificationStatus }) {
-  const [avatarFailed, setAvatarFailed] = useState(false);
+  const [failedAvatarSrc, setFailedAvatarSrc] = useState<null | string>(null);
   const color = status === "REJECTED" ? "bg-[var(--error)]" : status === "APPROVED" ? "bg-[var(--tertiary)]" : "bg-[var(--secondary)]";
   const location = [profile.locationDistrict, profile.locationCity].filter(Boolean).join(", ") || "Chưa cập nhật";
   const initial = profile.fullName.trim().charAt(0).toUpperCase() || "G";
   const avatarSrc = resolveUploadUrl(profile.avatarUrl);
-  const showAvatar = Boolean(avatarSrc) && !avatarFailed;
-
-  useEffect(() => {
-    setAvatarFailed(false);
-  }, [profile.avatarUrl]);
+  const showAvatar = Boolean(avatarSrc) && failedAvatarSrc !== avatarSrc;
 
   return (
     <div className="rounded-xl border border-[var(--outline-variant)] bg-white p-6 text-center shadow-sm">
       <div className="relative mx-auto mb-4 h-32 w-32">
         <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--surface)] bg-[var(--surface-container-highest)] text-5xl font-bold text-[var(--primary)]">
-          {showAvatar ? <Image alt={profile.fullName} className="object-cover" fill onError={() => setAvatarFailed(true)} sizes="128px" src={avatarSrc} unoptimized /> : initial}
+          {showAvatar ? <Image alt={profile.fullName} className="object-cover" fill onError={() => setFailedAvatarSrc(avatarSrc)} sizes="128px" src={avatarSrc} unoptimized /> : initial}
         </div>
         <div className={`absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-white ${color}`}>
           <Icon name={status === "APPROVED" ? "verified" : status === "REJECTED" ? "priority_high" : "hourglass_empty"} fill className="text-[16px]" />

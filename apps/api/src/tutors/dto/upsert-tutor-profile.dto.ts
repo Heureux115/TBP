@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { SubjectLevel, TeachingMode } from '@prisma/client';
+import { SanitizeText } from '../../common/sanitize';
 
 export class TutorSubjectInputDto {
   @IsUUID()
@@ -26,11 +27,13 @@ export class UpsertTutorProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(160)
+  @SanitizeText()
   headline?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(3000)
+  @SanitizeText()
   bio?: string;
 
   @IsOptional()
@@ -56,11 +59,13 @@ export class UpsertTutorProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(120)
+  @SanitizeText()
   locationCity?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(120)
+  @SanitizeText()
   locationDistrict?: string;
 
   @IsOptional()

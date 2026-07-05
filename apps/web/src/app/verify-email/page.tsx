@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChangeEvent, ClipboardEvent, FormEvent, Suspense, useMemo, useRef, useState } from "react";
 import { AuthFormCard, AuthNotice, AuthShell } from "@/components/auth/auth-shell";
+import { AUTH_CODE_NOTICE_KEYS, AuthCodeNotification, readAuthCodeNotice } from "@/components/auth/auth-code-notification";
 import { Button, Icon, StatusBadge } from "@/components/ui";
 import { resendVerification, verifyEmail } from "@/lib/api";
 import { useHasMounted } from "@/lib/use-has-mounted";
@@ -18,8 +19,18 @@ function VerifyEmailContent() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCodeNoticeClosed, setIsCodeNoticeClosed] = useState(false);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const code = useMemo(() => digits.join(""), [digits]);
+  const codeNotice =
+    hasMounted && !isCodeNoticeClosed && email
+      ? readAuthCodeNotice(AUTH_CODE_NOTICE_KEYS.verification, email)
+      : null;
+
+  function closeCodeNotice() {
+    window.sessionStorage.removeItem(AUTH_CODE_NOTICE_KEYS.verification);
+    setIsCodeNoticeClosed(true);
+  }
 
   function updateDigit(index: number, value: string) {
     const nextValue = value.replace(/\D/g, "").slice(-1);
@@ -179,6 +190,15 @@ function VerifyEmailContent() {
         {message ? <AuthNotice tone="success">{message}</AuthNotice> : null}
         {error ? <AuthNotice>{error}</AuthNotice> : null}
       </AuthFormCard>
+
+      {codeNotice ? (
+        <AuthCodeNotification
+          code={codeNotice.code}
+          email={codeNotice.email}
+          kind="verification"
+          onClose={closeCodeNotice}
+        />
+      ) : null}
     </AuthShell>
   );
 }

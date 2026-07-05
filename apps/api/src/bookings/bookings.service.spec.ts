@@ -112,7 +112,7 @@ describe('BookingsService', () => {
     const tx = {
       availabilitySlot: {
         findUnique: jest.fn().mockResolvedValue(slot),
-        update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       booking: { create: jest.fn().mockResolvedValue(created) },
     };
@@ -125,8 +125,8 @@ describe('BookingsService', () => {
       teachingMode: TeachingMode.OFFLINE,
     });
 
-    expect(tx.availabilitySlot.update).toHaveBeenCalledWith({
-      where: { id: slot.id },
+    expect(tx.availabilitySlot.updateMany).toHaveBeenCalledWith({
+      where: { id: slot.id, isBooked: false, deletedAt: null },
       data: { isBooked: true },
     });
     expect(tx.booking.create).toHaveBeenCalledWith(
@@ -145,6 +145,93 @@ describe('BookingsService', () => {
       }),
     );
     expect(result.teachingMode).toBe(TeachingMode.OFFLINE);
+  });
+
+  it('blocks a concurrent booking when the slot cannot be reserved', async () => {
+    const slot = {
+      id: 'slot-1',
+      tutorProfileId: 'tutor-profile-1',
+      startsAt: new Date(Date.now() + 86_400_000),
+      endsAt: new Date(Date.now() + 90_000_000),
+      isBooked: false,
+      deletedAt: null,
+      tutorProfile: {
+        id: 'tutor-profile-1',
+        userId: tutor.id,
+        hourlyRate: new Prisma.Decimal(200000),
+        teachingMode: TeachingMode.ONLINE,
+        verificationStatus: TutorVerificationStatus.APPROVED,
+        deletedAt: null,
+        user: {
+          id: tutor.id,
+          fullName: 'Tutor',
+          status: UserStatus.ACTIVE,
+          deletedAt: null,
+        },
+      },
+    };
+    const tx = {
+      availabilitySlot: {
+        findUnique: jest.fn().mockResolvedValue(slot),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    const service = new BookingsService(
+      { $transaction: jest.fn((callback) => callback(tx)) } as any,
+      createNotificationsMock() as any,
+    );
+
+    await expect(
+      service.create(student as any, { availabilitySlotId: slot.id }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('maps a unique slot booking collision to a booking conflict message', async () => {
+    const slot = {
+      id: 'slot-1',
+      tutorProfileId: 'tutor-profile-1',
+      startsAt: new Date(Date.now() + 86_400_000),
+      endsAt: new Date(Date.now() + 90_000_000),
+      isBooked: false,
+      deletedAt: null,
+      tutorProfile: {
+        id: 'tutor-profile-1',
+        userId: tutor.id,
+        hourlyRate: new Prisma.Decimal(200000),
+        teachingMode: TeachingMode.ONLINE,
+        verificationStatus: TutorVerificationStatus.APPROVED,
+        deletedAt: null,
+        user: {
+          id: tutor.id,
+          fullName: 'Tutor',
+          status: UserStatus.ACTIVE,
+          deletedAt: null,
+        },
+      },
+    };
+    const collision = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: 'test',
+        meta: { target: ['availabilitySlotId'] },
+      },
+    );
+    const tx = {
+      availabilitySlot: {
+        findUnique: jest.fn().mockResolvedValue(slot),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      booking: { create: jest.fn().mockRejectedValue(collision) },
+    };
+    const service = new BookingsService(
+      { $transaction: jest.fn((callback) => callback(tx)) } as any,
+      createNotificationsMock() as any,
+    );
+
+    await expect(
+      service.create(student as any, { availabilitySlotId: slot.id }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('blocks booking without choosing online/offline when tutor supports both', async () => {

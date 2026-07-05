@@ -25,6 +25,7 @@ export type AuthResponse = {
 export type RegisterResponse = {
   user: PublicUser;
   message: string;
+  verificationCode: string;
 };
 
 async function request<T>(
@@ -91,7 +92,7 @@ export function login(payload: { email: string; password: string }) {
 }
 
 export function forgotPassword(payload: { email: string }) {
-  return request<{ message: string }>("/auth/forgot-password", {
+  return request<{ message: string; resetCode?: string }>("/auth/forgot-password", {
     method: "POST",
     body: JSON.stringify(payload),
   });

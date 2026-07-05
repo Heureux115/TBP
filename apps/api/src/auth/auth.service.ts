@@ -106,6 +106,7 @@ export class AuthService {
     return {
       user: this.toPublicUser(user),
       message: 'Verification code sent to email.',
+      verificationCode: verification.otp,
     };
   }
 
@@ -148,6 +149,26 @@ export class AuthService {
       user: this.toPublicUser(user),
       ...tokens,
     };
+  }
+
+  async logout(refreshToken?: string) {
+    if (!refreshToken) {
+      return { message: 'Logged out.' };
+    }
+
+    const tokenHash = this.hashToken(refreshToken);
+
+    await this.prisma.refreshToken.updateMany({
+      where: {
+        tokenHash,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+
+    return { message: 'Logged out.' };
   }
 
   async refresh(dto: RefreshTokenDto) {
@@ -275,7 +296,10 @@ export class AuthService {
       otp: reset.otp,
     });
 
-    return { message: 'If the email exists, a reset code was sent.' };
+    return {
+      message: 'If the email exists, a reset code was sent.',
+      resetCode: reset.otp,
+    };
   }
 
   async resetPassword(dto: ResetPasswordDto) {
@@ -341,7 +365,9 @@ export class AuthService {
     });
 
     return {
+      user: this.toPublicUser(updatedUser),
       message: 'Verification code sent to email.',
+      verificationCode: verification.otp,
     };
   }
 

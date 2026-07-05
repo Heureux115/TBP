@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 import { BadRequestException } from '@nestjs/common';
 import {
+  AdminAuditAction,
   BookingStatus,
   PaymentProvider,
   PaymentStatus,
@@ -111,6 +112,115 @@ function createWithdrawal(overrides: Partial<any> = {}) {
 }
 
 describe('AdminOperationsService', () => {
+  it('audits admin booking list reads', async () => {
+    const prisma = {
+      booking: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      adminAuditLog: { create: jest.fn() },
+    };
+    const service = new AdminOperationsService(prisma, {
+      create: jest.fn(),
+    } as any);
+
+    const result = await service.listBookings(admin);
+
+    expect(result).toEqual([]);
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorId: admin.id,
+        action: AdminAuditAction.BOOKINGS_VIEWED,
+        resourceType: 'booking',
+        resourceId: null,
+        metadata: expect.objectContaining({
+          endpoint: 'GET /admin/bookings',
+          take: 200,
+          resultCount: 0,
+          viewedAt: expect.any(String),
+        }),
+      }),
+    });
+  });
+
+  it('audits admin user list reads with filters', async () => {
+    const prisma = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      adminAuditLog: { create: jest.fn() },
+    };
+    const service = new AdminOperationsService(prisma, {
+      create: jest.fn(),
+    } as any);
+
+    const result = await service.listUsers(admin, UserRole.STUDENT);
+
+    expect(result).toEqual([]);
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorId: admin.id,
+        action: AdminAuditAction.USERS_VIEWED,
+        resourceType: 'user',
+        resourceId: null,
+        metadata: expect.objectContaining({
+          endpoint: 'GET /admin/users',
+          filters: { role: UserRole.STUDENT },
+          take: 200,
+          resultCount: 0,
+        }),
+      }),
+    });
+  });
+
+  it('audits admin summary reads', async () => {
+    const prisma = {
+      user: { count: jest.fn() },
+      tutorProfile: { count: jest.fn() },
+      booking: { count: jest.fn() },
+      payment: { findMany: jest.fn() },
+      adminAuditLog: { create: jest.fn() },
+      $transaction: jest.fn().mockResolvedValue([
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        [],
+        [],
+        [],
+      ]),
+    };
+    const service = new AdminOperationsService(prisma, {
+      create: jest.fn(),
+    } as any);
+
+    const result = await service.getSummary(admin);
+
+    expect(result.users.total).toBe(0);
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorId: admin.id,
+        action: AdminAuditAction.SUMMARY_VIEWED,
+        resourceType: 'summary',
+        resourceId: null,
+        metadata: expect.objectContaining({
+          endpoint: 'GET /admin/summary',
+        }),
+      }),
+    });
+  });
+
   it('refunds a held paid payment and cancels the active booking', async () => {
     const payment = createPayment();
     const prisma = {
@@ -122,7 +232,7 @@ describe('AdminOperationsService', () => {
           status: PaymentStatus.REFUNDED,
           payoutStatus: PayoutStatus.REFUNDED,
           refundedAt: new Date(),
-          refundReason: 'student dispute',
+          refundReason: 'student cancellation',
           booking: {
             ...payment.booking,
             status: BookingStatus.CANCELLED,
@@ -142,7 +252,7 @@ describe('AdminOperationsService', () => {
     const result = await service.refundPayment(
       admin,
       payment.id,
-      'student dispute',
+      'student cancellation',
     );
 
     expect(prisma.payment.update).toHaveBeenCalledWith(
@@ -151,7 +261,7 @@ describe('AdminOperationsService', () => {
         data: expect.objectContaining({
           status: PaymentStatus.REFUNDED,
           payoutStatus: PayoutStatus.REFUNDED,
-          refundReason: 'student dispute',
+          refundReason: 'student cancellation',
         }),
       }),
     );
@@ -163,6 +273,61 @@ describe('AdminOperationsService', () => {
     expect(prisma.availabilitySlot.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { isBooked: false } }),
     );
+    expect(result.status).toBe(PaymentStatus.REFUNDED);
+  });
+
+  it('refunds a released payout when the tutor wallet can cover it', async () => {
+    const payment = createPayment({ payoutStatus: PayoutStatus.RELEASED });
+    const refundedPayment = {
+      ...payment,
+      status: PaymentStatus.REFUNDED,
+      payoutStatus: PayoutStatus.REFUNDED,
+      refundedAt: new Date(),
+      refundReason: 'admin refund',
+    };
+    const prisma = {
+      payment: {
+        findUnique: jest.fn().mockResolvedValue(payment),
+        update: jest.fn(),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(refundedPayment),
+      },
+      booking: { update: jest.fn() },
+      availabilitySlot: { update: jest.fn() },
+      tutorWallet: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          availableBalance: new Prisma.Decimal(200000),
+        }),
+        update: jest.fn(),
+      },
+      adminAuditLog: { create: jest.fn() },
+      $transaction: jest.fn((callback) => callback(prisma)),
+    };
+    const service = new AdminOperationsService(prisma, {
+      create: jest.fn(),
+    } as any);
+
+    const result = await service.refundPayment(
+      admin,
+      payment.id,
+      'admin refund',
+    );
+
+    expect(prisma.tutorWallet.update).toHaveBeenCalledWith({
+      where: { id: 'wallet-1' },
+      data: {
+        availableBalance: { decrement: payment.tutorPayoutAmount },
+      },
+    });
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorId: admin.id,
+        action: AdminAuditAction.PAYMENT_REFUNDED,
+        resourceType: 'payment',
+        resourceId: payment.id,
+        reason: 'admin refund',
+      },
+    });
     expect(result.status).toBe(PaymentStatus.REFUNDED);
   });
 
@@ -220,7 +385,7 @@ describe('AdminOperationsService', () => {
     } as any);
 
     await expect(
-      service.refundPayment(admin, payment.id, 'late dispute'),
+      service.refundPayment(admin, payment.id, 'late refund'),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

@@ -69,9 +69,15 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout(@Res({ passthrough: true }) response: Response) {
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const refreshToken =
+      this.getCookie(request, REFRESH_TOKEN_COOKIE) ?? undefined;
+    const result = await this.authService.logout(refreshToken);
     this.clearAuthCookies(response);
-    return { message: 'Logged out.' };
+    return result;
   }
 
   @Get('csrf-token')

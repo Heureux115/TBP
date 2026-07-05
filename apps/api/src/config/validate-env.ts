@@ -42,6 +42,7 @@ export function validateEnv() {
       'RESEND_API_KEY',
       'EMAIL_FROM',
       'ADMIN_PASSWORD',
+      'REDIS_URL',
     ];
     const productionMissing = productionRequired.filter(
       (key) => !process.env[key]?.trim(),

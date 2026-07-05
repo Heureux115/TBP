@@ -371,14 +371,3 @@ export function WithdrawalStatusBadge({ status }: { status: string }) {
   const item = meta[status] || { label: status, tone: "neutral" as StatusTone };
   return <StatusBadge tone={item.tone}>{item.label}</StatusBadge>;
 }
-
-export function DisputeStatusBadge({ status }: { status: string }) {
-  const meta: Record<string, { label: string; tone: StatusTone }> = {
-    OPEN: { label: "Mới mở", tone: "warning" },
-    REJECTED: { label: "Từ chối", tone: "danger" },
-    RESOLVED_REFUNDED: { label: "Đã hoàn tiền", tone: "success" },
-    UNDER_REVIEW: { label: "Đang xem xét", tone: "info" },
-  };
-  const item = meta[status] || { label: status, tone: "neutral" as StatusTone };
-  return <StatusBadge tone={item.tone}>{item.label}</StatusBadge>;
-}

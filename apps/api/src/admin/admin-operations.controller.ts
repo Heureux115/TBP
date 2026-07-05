@@ -32,26 +32,27 @@ export class AdminOperationsController {
   ) {}
 
   @Get('bookings')
-  listBookings() {
-    return this.adminOperationsService.listBookings();
+  listBookings(@Req() request: AuthenticatedRequest) {
+    return this.adminOperationsService.listBookings(request.user);
   }
 
   @Get('summary')
-  getSummary() {
-    return this.adminOperationsService.getSummary();
+  getSummary(@Req() request: AuthenticatedRequest) {
+    return this.adminOperationsService.getSummary(request.user);
   }
 
   @Get('users')
   listUsers(
+    @Req() request: AuthenticatedRequest,
     @Query('role', new ParseEnumPipe(UserRole, { optional: true }))
     role?: UserRole,
   ) {
-    return this.adminOperationsService.listUsers(role);
+    return this.adminOperationsService.listUsers(request.user, role);
   }
 
   @Get('payments')
-  listPayments() {
-    return this.adminOperationsService.listPayments();
+  listPayments(@Req() request: AuthenticatedRequest) {
+    return this.adminOperationsService.listPayments(request.user);
   }
 
   @Get('audit-logs')

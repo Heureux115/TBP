@@ -36,10 +36,6 @@ model User {
   messageAttachments             MessageAttachment[] @relation("MessageAttachmentUploader")
   messageDeletions               MessageDeletion[]
   notifications                  Notification[]
-  openedDisputes                 Dispute[]      @relation("DisputeOpenedBy")
-  resolvedDisputes               Dispute[]      @relation("DisputeResolvedBy")
-  disputeMessages                DisputeMessage[] @relation("DisputeMessageAuthor")
-  disputeAttachments             DisputeAttachment[] @relation("DisputeAttachmentUploader")
 
   @@index([passwordResetTokenHash])
   @@map("users")
@@ -188,7 +184,6 @@ model Booking {
   payment            Payment?
   conversation       Conversation?
   review             Review?
-  disputes           Dispute[]
 
   @@index([studentId, startsAt])
   @@index([tutorProfileId, startsAt])
@@ -272,7 +267,6 @@ model Payment {
   updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
   booking            Booking         @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   payer              User            @relation("PaymentPayer", fields: [payerId], references: [id], onDelete: Restrict)
-  disputes           Dispute[]
 
   @@index([payerId])
   @@index([status])
@@ -359,7 +353,7 @@ model AdminAuditLog {
   actorId      String           @map("actor_id") @db.Uuid
   action       AdminAuditAction
   resourceType String           @map("resource_type")
-  resourceId   String           @map("resource_id") @db.Uuid
+  resourceId   String?          @map("resource_id") @db.Uuid
   reason       String?
   metadata     Json?
   createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -385,65 +379,6 @@ model Notification {
   @@index([userId, readAt, createdAt])
   @@index([type])
   @@map("notifications")
-}
-
-model Dispute {
-  id            String        @id @default(uuid()) @db.Uuid
-  bookingId     String        @map("booking_id") @db.Uuid
-  paymentId     String        @map("payment_id") @db.Uuid
-  openedById    String        @map("opened_by_id") @db.Uuid
-  resolvedById  String?       @map("resolved_by_id") @db.Uuid
-  status        DisputeStatus @default(OPEN)
-  reason        String
-  adminNote     String?       @map("admin_note")
-  resolution    String?
-  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  resolvedAt    DateTime?     @map("resolved_at") @db.Timestamptz(6)
-  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  payment       Payment       @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  openedBy      User          @relation("DisputeOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
-  resolvedBy    User?         @relation("DisputeResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
-  messages      DisputeMessage[]
-
-  @@index([bookingId])
-  @@index([paymentId])
-  @@index([openedById])
-  @@index([status, createdAt])
-  @@map("disputes")
-}
-
-model DisputeMessage {
-  id          String              @id @default(uuid()) @db.Uuid
-  disputeId   String              @map("dispute_id") @db.Uuid
-  authorId    String              @map("author_id") @db.Uuid
-  body        String
-  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  dispute     Dispute             @relation(fields: [disputeId], references: [id], onDelete: Cascade)
-  author      User                @relation("DisputeMessageAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-  attachments DisputeAttachment[]
-
-  @@index([disputeId, createdAt])
-  @@index([authorId])
-  @@map("dispute_messages")
-}
-
-model DisputeAttachment {
-  id               String         @id @default(uuid()) @db.Uuid
-  disputeMessageId String         @map("dispute_message_id") @db.Uuid
-  uploadedById     String         @map("uploaded_by_id") @db.Uuid
-  url              String
-  fileName         String         @map("file_name")
-  mimeType         String         @map("mime_type")
-  size             Int
-  kind             AttachmentKind
-  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  disputeMessage   DisputeMessage @relation(fields: [disputeMessageId], references: [id], onDelete: Cascade)
-  uploadedBy       User           @relation("DisputeAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-
-  @@index([disputeMessageId])
-  @@index([uploadedById])
-  @@map("dispute_attachments")
 }
 
 enum UserRole {
@@ -541,14 +476,6 @@ enum NotificationType {
   BOOKING_CANCELLED
   BOOKING_COMPLETED
   WITHDRAWAL_UPDATED
-  DISPUTE_UPDATED
-}
-
-enum DisputeStatus {
-  OPEN
-  UNDER_REVIEW
-  RESOLVED_REFUNDED
-  REJECTED
 }
 
 enum AttachmentKind {
@@ -557,6 +484,10 @@ enum AttachmentKind {
 }
 
 enum AdminAuditAction {
+  BOOKINGS_VIEWED
+  PAYMENTS_VIEWED
+  USERS_VIEWED
+  SUMMARY_VIEWED
   TUTOR_APPROVED
   TUTOR_REJECTED
   DOCUMENT_APPROVED
@@ -567,7 +498,4 @@ enum AdminAuditAction {
   WITHDRAWAL_PROCESSING
   WITHDRAWAL_PAID
   WITHDRAWAL_REJECTED
-  DISPUTE_UNDER_REVIEW
-  DISPUTE_RESOLVED_REFUNDED
-  DISPUTE_REJECTED
 }

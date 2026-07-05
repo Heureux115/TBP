@@ -391,14 +391,6 @@ async function seedTutor(
 }
 
 async function resetTutorRuntimeData(prisma: PrismaClient, tutorProfileId: string) {
-  await prisma.dispute.deleteMany({
-    where: {
-      booking: {
-        tutorProfileId,
-      },
-    },
-  });
-
   await prisma.review.deleteMany({
     where: { tutorProfileId },
   });

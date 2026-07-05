@@ -7,7 +7,6 @@ export type AdminPaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "
 export type AdminPaymentProvider = "MOCK" | "VNPAY" | "MOMO";
 export type AdminPayoutStatus = "HELD" | "RELEASED" | "CANCELLED" | "REFUNDED";
 export type AdminWithdrawalStatus = "PENDING" | "PROCESSING" | "PAID" | "REJECTED" | "CANCELLED";
-export type AdminDisputeStatus = "OPEN" | "UNDER_REVIEW" | "RESOLVED_REFUNDED" | "REJECTED";
 
 export type AdminBooking = {
   id: string;
@@ -113,62 +112,6 @@ export type AdminWithdrawal = {
   };
 };
 
-export type AdminDispute = {
-  id: string;
-  status: AdminDisputeStatus;
-  reason: string;
-  adminNote: string | null;
-  resolution: string | null;
-  createdAt: string;
-  updatedAt: string;
-  resolvedAt: string | null;
-  openedBy: {
-    id: string;
-    fullName: string;
-    email: string;
-  };
-  resolvedBy: {
-    id: string;
-    fullName: string;
-    email: string;
-  } | null;
-  booking: {
-    id: string;
-    status: AdminBookingStatus;
-    startsAt: string;
-    endsAt: string;
-    student: { id: string; fullName: string; email: string };
-    tutor: { id: string; fullName: string; email: string };
-  };
-  payment: {
-    id: string;
-    amount: string;
-    status: AdminPaymentStatus;
-    payoutStatus: AdminPayoutStatus;
-    refundedAt: string | null;
-  };
-  messages: Array<{
-    id: string;
-    body: string;
-    createdAt: string;
-    author: {
-      id: string;
-      fullName: string;
-      email: string;
-      role: "STUDENT" | "TUTOR" | "ADMIN" | "SUPER_ADMIN";
-    };
-    attachments: Array<{
-      id: string;
-      url: string;
-      fileName: string;
-      mimeType: string;
-      size: number;
-      kind: "IMAGE" | "DOCUMENT";
-      createdAt: string;
-    }>;
-  }>;
-};
-
 export type AdminAuditLog = {
   id: string;
   action: string;
@@ -227,10 +170,6 @@ export type AdminSummary = {
     paidCount: number;
     pendingCount: number;
     refundedCount: number;
-  };
-  disputes: {
-    open: number;
-    underReview: number;
   };
 };
 
@@ -298,31 +237,6 @@ export function rejectAdminWithdrawal(token: string, id: string, reason: string)
   return request<AdminWithdrawal>(`/admin/withdrawals/${id}/reject`, token, {
     method: "PATCH",
     body: JSON.stringify({ reason }),
-  });
-}
-
-export function getAdminDisputes(token: string) {
-  return request<AdminDispute[]>("/admin/disputes", token);
-}
-
-export function markAdminDisputeReview(token: string, id: string, adminNote?: string) {
-  return request<AdminDispute>(`/admin/disputes/${id}/review`, token, {
-    method: "PATCH",
-    body: JSON.stringify({ adminNote }),
-  });
-}
-
-export function refundAdminDispute(token: string, id: string, adminNote?: string) {
-  return request<AdminDispute>(`/admin/disputes/${id}/refund`, token, {
-    method: "PATCH",
-    body: JSON.stringify({ adminNote }),
-  });
-}
-
-export function rejectAdminDispute(token: string, id: string, adminNote?: string) {
-  return request<AdminDispute>(`/admin/disputes/${id}/reject`, token, {
-    method: "PATCH",
-    body: JSON.stringify({ adminNote }),
   });
 }
 

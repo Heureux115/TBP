@@ -342,7 +342,7 @@ export default function PaymentsPage() {
             <div className="grid gap-3 text-sm text-[var(--on-surface-variant)] md:grid-cols-3">
               <PolicyLine icon="lock" title="Giữ tiền an toàn" text="Giao dịch paid có thể được giữ cho đến khi buổi học hoàn tất." />
               <PolicyLine icon="assignment_return" title="Hoàn tiền minh bạch" text="Giao dịch refunded sẽ hiển thị rõ trạng thái và thời điểm hoàn nếu API có dữ liệu." />
-              <PolicyLine icon="support_agent" title="Cần hỗ trợ?" text="Các tranh chấp và hủy lịch được xử lý từ chi tiết booking liên quan." />
+              <PolicyLine icon="support_agent" title="Cần hỗ trợ?" text="Các yêu cầu hủy lịch được xử lý từ chi tiết booking liên quan." />
             </div>
           </Card>
         </div>

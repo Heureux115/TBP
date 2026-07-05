@@ -9,7 +9,10 @@ function notifyAuthChanged() {
 }
 
 export function saveTokens(tokens: { accessToken: string; refreshToken: string }) {
-  void tokens;
+  const hasServerIssuedSession = Boolean(tokens.accessToken || tokens.refreshToken);
+  if (!hasServerIssuedSession) return;
+
+  // Tokens are set by the API as httpOnly cookies; localStorage is kept clear by design.
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   notifyAuthChanged();

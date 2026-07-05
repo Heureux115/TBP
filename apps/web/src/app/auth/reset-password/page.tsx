@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { AuthField, AuthFormCard, AuthNotice, AuthShell } from "@/components/auth/auth-shell";
+import { AUTH_CODE_NOTICE_KEYS, AuthCodeNotification, readAuthCodeNotice } from "@/components/auth/auth-code-notification";
 import { Button, Icon } from "@/components/ui";
 import { resetPassword } from "@/lib/api";
+import { useHasMounted } from "@/lib/use-has-mounted";
 
 export default function ResetPasswordPage() {
   return (
@@ -18,12 +19,23 @@ export default function ResetPasswordPage() {
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
+  const hasMounted = useHasMounted();
   const [email, setEmail] = useState(searchParams.get("email") || "");
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCodeNoticeClosed, setIsCodeNoticeClosed] = useState(false);
+  const codeNotice =
+    hasMounted && !isCodeNoticeClosed && email
+      ? readAuthCodeNotice(AUTH_CODE_NOTICE_KEYS.passwordReset, email)
+      : null;
+
+  function closeCodeNotice() {
+    window.sessionStorage.removeItem(AUTH_CODE_NOTICE_KEYS.passwordReset);
+    setIsCodeNoticeClosed(true);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,6 +127,15 @@ function ResetPasswordForm() {
         ) : null}
         {error ? <AuthNotice>{error}</AuthNotice> : null}
       </AuthFormCard>
+
+      {codeNotice ? (
+        <AuthCodeNotification
+          code={codeNotice.code}
+          email={codeNotice.email}
+          kind="password-reset"
+          onClose={closeCodeNotice}
+        />
+      ) : null}
     </AuthShell>
   );
 }

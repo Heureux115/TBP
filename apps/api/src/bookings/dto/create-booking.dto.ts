@@ -6,6 +6,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { TeachingMode } from '@prisma/client';
+import { SanitizeText } from '../../common/sanitize';
 
 export class CreateBookingDto {
   @IsUUID()
@@ -18,5 +19,6 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
+  @SanitizeText()
   studentNote?: string;
 }

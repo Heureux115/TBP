@@ -7,7 +7,6 @@ import { Avatar, Button, Card, CardDescription, CardHeader, CardTitle, Dialog, F
 import { getCurrentUser, PublicUser } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { Booking, BookingStatus, cancelBooking, completeBooking, confirmBooking, getBooking } from "@/lib/booking-api";
-import { createDispute } from "@/lib/dispute-api";
 import { ensureConversation, getMessages, Message } from "@/lib/message-api";
 import { createPayment, getMyPayments, mockConfirmPayment, Payment } from "@/lib/payment-api";
 import { useHasMounted } from "@/lib/use-has-mounted";
@@ -114,8 +113,6 @@ export function BookingDetailScreen({ id }: { id: string }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
-  const [disputeReason, setDisputeReason] = useState("Tôi cần admin hỗ trợ kiểm tra buổi học này.");
 
   useEffect(() => {
     if (!hasMounted) return;
@@ -238,25 +235,6 @@ export function BookingDetailScreen({ id }: { id: string }) {
     }
   }
 
-  async function submitDispute() {
-    const token = getAccessToken();
-    if (!token || !booking) return;
-    const reason = disputeReason.trim();
-    if (!reason) return;
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      await createDispute(token, booking.id, reason);
-      setDisputeDialogOpen(false);
-      setNotice("Yêu cầu hỗ trợ đã được gửi tới admin để xử lý.");
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Không thể tạo yêu cầu hỗ trợ.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (!hasMounted) return <DetailSkeleton />;
 
   if (error && !booking) {
@@ -287,7 +265,6 @@ export function BookingDetailScreen({ id }: { id: string }) {
   const canCancel = booking.status !== "CANCELLED" && booking.status !== "COMPLETED";
   const canConfirm = role === "TUTOR" && booking.status === "PENDING";
   const canPay = role === "STUDENT" && booking.status === "CONFIRMED" && (!payment || payment.status === "PENDING");
-  const canOpenDispute = role === "STUDENT" && paid && booking.status !== "CANCELLED" && booking.status !== "COMPLETED";
   const canComplete = role === "TUTOR" && paid && booking.status === "CONFIRMED" && new Date(booking.startsAt) <= new Date();
   const showCompleteAction = role === "TUTOR" && (booking.status === "CONFIRMED" || booking.status === "COMPLETED");
   const completeReason = getCompleteUnavailableReason(booking, paid);
@@ -439,14 +416,9 @@ export function BookingDetailScreen({ id }: { id: string }) {
               <CardTitle className="text-lg">Hỗ trợ và chính sách</CardTitle>
               <div className="mt-4 space-y-3 text-sm leading-6 text-[var(--on-surface-variant)]">
                 <p>Thanh toán thành công được giữ để bảo vệ cả học viên và gia sư cho đến khi buổi học được xử lý.</p>
-                <p>Nếu có vấn đề với buổi học hoặc thanh toán, gửi yêu cầu hỗ trợ để admin kiểm tra lịch sử booking.</p>
+                <p>Nếu cần hủy lịch, hãy sử dụng thao tác bên dưới. Trạng thái hoàn tiền sẽ được cập nhật trong phần thanh toán.</p>
               </div>
               <div className="mt-5 flex flex-col gap-2">
-                {canOpenDispute ? (
-                  <Button onClick={() => setDisputeDialogOpen(true)} variant="outline">
-                    Gửi yêu cầu hỗ trợ
-                  </Button>
-                ) : null}
                 {canCancel ? (
                   <Button onClick={() => setCancelDialogOpen(true)} variant="danger">
                     Hủy lịch học
@@ -478,14 +450,6 @@ export function BookingDetailScreen({ id }: { id: string }) {
         paid={paid}
       />
 
-      <DisputeDialog
-        busy={busy}
-        onCancel={() => setDisputeDialogOpen(false)}
-        onConfirm={submitDispute}
-        onReasonChange={setDisputeReason}
-        open={disputeDialogOpen}
-        reason={disputeReason}
-      />
     </main>
   );
 }
@@ -861,58 +825,6 @@ function CancelBookingDialog({
         </Button>
         <Button isLoading={busy} onClick={onConfirm} variant="danger">
           Xác nhận hủy
-        </Button>
-      </footer>
-    </Dialog>
-  );
-}
-
-function DisputeDialog({
-  busy,
-  onCancel,
-  onConfirm,
-  onReasonChange,
-  open,
-  reason,
-}: {
-  busy: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-  onReasonChange: (value: string) => void;
-  open: boolean;
-  reason: string;
-}) {
-  const trimmedReason = reason.trim();
-
-  return (
-    <Dialog
-      closeOnBackdrop={!busy}
-      closeOnEscape={!busy}
-      description="Admin sẽ dùng thông tin này để kiểm tra booking, tin nhắn và thanh toán liên quan."
-      onClose={onCancel}
-      open={open}
-      title="Gửi yêu cầu hỗ trợ"
-    >
-      <div className="p-6">
-        <label className="block">
-          <span className="mb-2 block text-sm font-bold text-[var(--on-surface)]">Lý do cần hỗ trợ</span>
-          <textarea
-            className="min-h-32 w-full resize-y rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-white px-3 py-2 text-sm leading-6 text-[var(--on-surface)] outline-none transition focus:border-[var(--primary)] focus:shadow-[var(--focus-ring)]"
-            data-dialog-initial-focus
-            disabled={busy}
-            onChange={(event) => onReasonChange(event.target.value)}
-            placeholder="Ví dụ: Buổi học không diễn ra, cần kiểm tra hoàn tiền..."
-            value={reason}
-          />
-        </label>
-        <p className="mt-2 text-xs font-semibold text-[var(--on-surface-variant)]">Vui lòng mô tả ngắn gọn, cụ thể để admin xử lý nhanh hơn.</p>
-      </div>
-      <footer className="grid grid-cols-2 gap-3 bg-[var(--surface-container-low)] p-4">
-        <Button disabled={busy} onClick={onCancel} variant="outline">
-          Để sau
-        </Button>
-        <Button disabled={!trimmedReason} isLoading={busy} onClick={onConfirm}>
-          Gửi yêu cầu
         </Button>
       </footer>
     </Dialog>

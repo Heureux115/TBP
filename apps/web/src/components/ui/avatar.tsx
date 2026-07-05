@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "./utils";
 
 type AvatarSize = "lg" | "md" | "sm" | "xl";
@@ -32,14 +32,10 @@ export function Avatar({
   size?: AvatarSize;
   src?: null | string;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<null | string>(null);
   const initial = name.trim().charAt(0).toUpperCase() || "U";
-  const showImage = Boolean(src) && !failed;
   const imageSrc = resolveAvatarSrc(src);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [src]);
+  const showImage = Boolean(imageSrc) && failedSrc !== imageSrc;
 
   return (
     <span
@@ -50,7 +46,7 @@ export function Avatar({
       )}
     >
       {showImage ? (
-        <Image alt={name} className="object-cover" fill onError={() => setFailed(true)} sizes="96px" src={imageSrc} unoptimized />
+        <Image alt={name} className="object-cover" fill onError={() => setFailedSrc(imageSrc)} sizes="96px" src={imageSrc} unoptimized />
       ) : (
         <span aria-hidden="true">{initial}</span>
       )}

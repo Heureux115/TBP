@@ -51,7 +51,8 @@ export class BookingsService {
       throw new ForbiddenException('only students can create bookings');
     }
 
-    const booking = await this.prisma.$transaction(async (tx) => {
+    try {
+      const booking = await this.prisma.$transaction(async (tx) => {
       const slot = await tx.availabilitySlot.findUnique({
         where: { id: dto.availabilitySlotId },
         include: {
@@ -92,10 +93,14 @@ export class BookingsService {
         dto.teachingMode,
       );
 
-      await tx.availabilitySlot.update({
-        where: { id: slot.id },
+      const reserved = await tx.availabilitySlot.updateMany({
+        where: { id: slot.id, isBooked: false, deletedAt: null },
         data: { isBooked: true },
       });
+
+      if (reserved.count !== 1) {
+        throw new BadRequestException('availability slot is already booked');
+      }
 
       const created = await tx.booking.create({
         data: {
@@ -125,9 +130,19 @@ export class BookingsService {
       });
 
       return created;
-    });
+      });
 
-    return this.serializeBooking(booking);
+      return this.serializeBooking(booking);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException('availability slot is already booked');
+      }
+
+      throw error;
+    }
   }
 
   async listMine(user: AuthenticatedUser) {
@@ -296,6 +311,10 @@ export class BookingsService {
   }
 
   async complete(user: AuthenticatedUser, id: string) {
+    if (user.role !== UserRole.TUTOR) {
+      throw new ForbiddenException('only tutors can complete bookings');
+    }
+
     const booking = await this.prisma.booking.findFirst({
       where: { id, deletedAt: null },
       include: bookingInclude,

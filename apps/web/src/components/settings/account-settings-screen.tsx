@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { RoleDashboardShell, type DashboardRole } from "@/components/layouts/role-dashboard-shell";
 import { Avatar, Button, Card, Icon, StatusBadge } from "@/components/ui";
 import { changeAccountPassword, updateAccountProfile, uploadAccountAvatar } from "@/lib/account-api";
@@ -15,10 +15,10 @@ export function AccountSettingsScreen({ role }: { role: DashboardRole }) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const avatarPreviewUrl = useMemo(() => (avatarFile ? URL.createObjectURL(avatarFile) : null), [avatarFile]);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -34,16 +34,9 @@ export function AccountSettingsScreen({ role }: { role: DashboardRole }) {
   }, []);
 
   useEffect(() => {
-    if (!avatarFile) {
-      setAvatarPreviewUrl(null);
-      return undefined;
-    }
-
-    const objectUrl = URL.createObjectURL(avatarFile);
-    setAvatarPreviewUrl(objectUrl);
-
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [avatarFile]);
+    if (!avatarPreviewUrl) return undefined;
+    return () => URL.revokeObjectURL(avatarPreviewUrl);
+  }, [avatarPreviewUrl]);
 
   const avatarPreview = avatarPreviewUrl || user?.avatarUrl || null;
 

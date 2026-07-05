@@ -38,6 +38,7 @@ import {
   normalizeSearchText,
   searchTokens,
 } from '../common/search-text';
+import { assertContentMatchesMime } from '../common/file-storage';
 
 const tutorProfileInclude = {
   user: true,
@@ -1044,6 +1045,8 @@ export class TutorsService {
     if (!this.extensionFromMime(file.mimetype)) {
       throw new BadRequestException('unsupported file extension');
     }
+
+    assertContentMatchesMime(file);
   }
 
   private async storeUpload(file: MultipartFile, folder: string) {

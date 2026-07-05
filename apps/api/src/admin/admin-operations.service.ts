@@ -6,7 +6,6 @@ import {
 import {
   AdminAuditAction,
   BookingStatus,
-  DisputeStatus,
   NotificationType,
   PaymentStatus,
   PayoutStatus,
@@ -77,22 +76,36 @@ export class AdminOperationsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async listBookings() {
+  async listBookings(admin: AuthenticatedUser) {
+    const take = 200;
     const bookings = await this.prisma.booking.findMany({
       where: { deletedAt: null },
       include: adminBookingInclude,
       orderBy: { startsAt: 'desc' },
-      take: 200,
+      take,
+    });
+
+    await this.auditRead(admin, AdminAuditAction.BOOKINGS_VIEWED, 'booking', {
+      endpoint: 'GET /admin/bookings',
+      take,
+      resultCount: bookings.length,
     });
 
     return bookings.map((booking) => this.serializeBooking(booking));
   }
 
-  async listPayments() {
+  async listPayments(admin: AuthenticatedUser) {
+    const take = 200;
     const payments = await this.prisma.payment.findMany({
       include: adminPaymentInclude,
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      take,
+    });
+
+    await this.auditRead(admin, AdminAuditAction.PAYMENTS_VIEWED, 'payment', {
+      endpoint: 'GET /admin/payments',
+      take,
+      resultCount: payments.length,
     });
 
     return payments.map((payment) => this.serializePayment(payment));
@@ -367,7 +380,8 @@ export class AdminOperationsService {
     }));
   }
 
-  async listUsers(role?: UserRole) {
+  async listUsers(admin: AuthenticatedUser, role?: UserRole) {
+    const take = 200;
     const users = await this.prisma.user.findMany({
       where: {
         deletedAt: null,
@@ -382,7 +396,14 @@ export class AdminOperationsService {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      take,
+    });
+
+    await this.auditRead(admin, AdminAuditAction.USERS_VIEWED, 'user', {
+      endpoint: 'GET /admin/users',
+      filters: { role: role ?? null },
+      take,
+      resultCount: users.length,
     });
 
     return users.map((user) => ({
@@ -399,7 +420,7 @@ export class AdminOperationsService {
     }));
   }
 
-  async getSummary() {
+  async getSummary(admin: AuthenticatedUser) {
     const [
       totalUsers,
       students,
@@ -420,8 +441,6 @@ export class AdminOperationsService {
       paidPayments,
       pendingPayments,
       refundedPayments,
-      openDisputes,
-      underReviewDisputes,
     ] = await this.prisma.$transaction([
       this.prisma.user.count({ where: { deletedAt: null } }),
       this.prisma.user.count({
@@ -487,10 +506,6 @@ export class AdminOperationsService {
       this.prisma.payment.findMany({
         where: { status: PaymentStatus.REFUNDED },
       }),
-      this.prisma.dispute.count({ where: { status: DisputeStatus.OPEN } }),
-      this.prisma.dispute.count({
-        where: { status: DisputeStatus.UNDER_REVIEW },
-      }),
     ]);
 
     const sum = (
@@ -506,7 +521,7 @@ export class AdminOperationsService {
         new Prisma.Decimal(0),
       );
 
-    return {
+    const summary = {
       users: {
         total: totalUsers,
         students,
@@ -551,11 +566,33 @@ export class AdminOperationsService {
         pendingCount: pendingPayments.length,
         refundedCount: refundedPayments.length,
       },
-      disputes: {
-        open: openDisputes,
-        underReview: underReviewDisputes,
-      },
     };
+
+    await this.auditRead(admin, AdminAuditAction.SUMMARY_VIEWED, 'summary', {
+      endpoint: 'GET /admin/summary',
+    });
+
+    return summary;
+  }
+
+  private async auditRead(
+    actor: AuthenticatedUser,
+    action: AdminAuditAction,
+    resourceType: string,
+    metadata: Prisma.InputJsonObject,
+  ) {
+    await this.prisma.adminAuditLog.create({
+      data: {
+        actorId: actor.id,
+        action,
+        resourceType,
+        resourceId: null,
+        metadata: {
+          ...metadata,
+          viewedAt: new Date().toISOString(),
+        },
+      },
+    });
   }
 
   private serializeBooking(booking: AdminBooking) {

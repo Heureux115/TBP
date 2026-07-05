@@ -23,6 +23,10 @@ describe('AppController (e2e)', () => {
       .expect('Hello World!');
   });
 
+  it('/disputes (POST) is not available', () => {
+    return request(app.getHttpServer()).post('/disputes').send({}).expect(404);
+  });
+
   afterEach(async () => {
     await app.close();
   });

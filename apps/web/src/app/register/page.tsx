@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { AuthField, AuthFormCard, AuthNotice, AuthShell } from "@/components/auth/auth-shell";
+import { AUTH_CODE_NOTICE_KEYS, saveAuthCodeNotice } from "@/components/auth/auth-code-notification";
 import { Button, Icon, StatusBadge } from "@/components/ui";
 import { register } from "@/lib/api";
 
@@ -43,15 +44,20 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      await register({
+      const result = await register({
         email,
         password,
         fullName,
         role,
       });
+      const normalizedEmail = email.trim().toLowerCase();
       const next = role === "TUTOR" ? "/tutor/onboarding" : "/dashboard";
+      saveAuthCodeNotice(AUTH_CODE_NOTICE_KEYS.verification, {
+        code: result.verificationCode,
+        email: normalizedEmail,
+      });
       router.push(
-        `/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}&next=${encodeURIComponent(next)}`,
+        `/verify-email?email=${encodeURIComponent(normalizedEmail)}&next=${encodeURIComponent(next)}`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng ký thất bại.");
@@ -183,6 +189,7 @@ export default function RegisterPage() {
           </Link>
         </p>
       </AuthFormCard>
+
     </AuthShell>
   );
 }

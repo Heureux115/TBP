@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { AuthField, AuthFormCard, AuthNotice, AuthShell } from "@/components/auth/auth-shell";
+import { AUTH_CODE_NOTICE_KEYS, saveAuthCodeNotice } from "@/components/auth/auth-code-notification";
 import { Button, Icon } from "@/components/ui";
 import { forgotPassword } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -20,6 +23,16 @@ export default function ForgotPasswordPage() {
 
     try {
       const result = await forgotPassword({ email });
+      const normalizedEmail = email.trim().toLowerCase();
+      if (result.resetCode) {
+        saveAuthCodeNotice(AUTH_CODE_NOTICE_KEYS.passwordReset, {
+          code: result.resetCode,
+          email: normalizedEmail,
+        });
+        router.push(`/auth/reset-password?email=${encodeURIComponent(normalizedEmail)}`);
+        return;
+      }
+
       setMessage(result.message);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể gửi mã đặt lại mật khẩu.");

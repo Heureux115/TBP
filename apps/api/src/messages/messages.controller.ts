@@ -15,6 +15,8 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../auth/types/auth.types';
+import { RateLimitGuard } from '../common/guards/rate-limit.guard';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 import { ATTACHMENT_MAX_FILES } from '../common/file-storage';
 import type { MultipartFile } from '../common/file-storage';
 import { CreateConversationDto } from './dto/create-conversation.dto';
@@ -52,6 +54,8 @@ export class MessagesController {
     return this.messagesService.listMessages(request.user, id);
   }
 
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 30, windowMs: 60_000 })
   @Post('conversations/:id/messages')
   @UseInterceptors(FilesInterceptor('files', ATTACHMENT_MAX_FILES))
   async sendMessage(

@@ -11,6 +11,8 @@ import {
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../auth/types/auth.types';
+import { RateLimitGuard } from '../common/guards/rate-limit.guard';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 import { BookingsService } from './bookings.service';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -24,6 +26,8 @@ type AuthenticatedRequest = Request & {
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 15, windowMs: 60_000 })
   @Post()
   create(@Req() request: AuthenticatedRequest, @Body() dto: CreateBookingDto) {
     return this.bookingsService.create(request.user, dto);
@@ -39,6 +43,8 @@ export class BookingsController {
     return this.bookingsService.getOne(request.user, id);
   }
 
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 15, windowMs: 60_000 })
   @Patch(':id/cancel')
   cancel(
     @Req() request: AuthenticatedRequest,
