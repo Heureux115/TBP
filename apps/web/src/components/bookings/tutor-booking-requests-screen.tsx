@@ -125,7 +125,6 @@ export function TutorBookingRequestsScreen() {
     if (!hasMounted) return;
     const token = getAccessToken();
     if (!token) {
-      setLoading(false);
       return;
     }
 

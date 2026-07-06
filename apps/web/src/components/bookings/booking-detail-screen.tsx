@@ -9,6 +9,7 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { Booking, BookingStatus, cancelBooking, completeBooking, confirmBooking, getBooking } from "@/lib/booking-api";
 import { ensureConversation, getMessages, Message } from "@/lib/message-api";
 import { createPayment, getMyPayments, mockConfirmPayment, Payment } from "@/lib/payment-api";
+import { createReview } from "@/lib/review-api";
 import { useHasMounted } from "@/lib/use-has-mounted";
 
 type PaymentLike = Payment | Booking["payment"];
@@ -109,6 +110,11 @@ export function BookingDetailScreen({ id }: { id: string }) {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [payment, setPayment] = useState<PaymentLike>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [review, setReview] = useState<Booking["review"]>(null);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -126,6 +132,7 @@ export function BookingDetailScreen({ id }: { id: string }) {
       .then(([current, bookingItem, paymentItems]) => {
         setUser(current.user);
         setBooking(bookingItem);
+        setReview(bookingItem.review);
         setPayment(paymentItems.find((item) => item.bookingId === bookingItem.id) || bookingItem.payment);
       })
       .catch((requestError) => {
@@ -145,6 +152,8 @@ export function BookingDetailScreen({ id }: { id: string }) {
   }, [booking, hasMounted]);
 
   const role = user?.role;
+  const bookingsBackHref = role === "TUTOR" ? "/tutor/schedule" : "/bookings";
+  const bookingsBackLabel = role === "TUTOR" ? "Quay lại lịch dạy" : "Quay lại lịch học";
   const otherName = useMemo(() => {
     if (!booking) return "";
     return role === "TUTOR" ? booking.student.fullName : booking.tutor.fullName;
@@ -226,12 +235,45 @@ export function BookingDetailScreen({ id }: { id: string }) {
     try {
       const updated = await completeBooking(token, booking.id);
       setBooking(updated);
+      setReview(updated.review);
       setPayment(updated.payment);
       setNotice("Buổi học đã được đánh dấu hoàn thành.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể hoàn thành buổi học.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleCreateReview() {
+    const token = getAccessToken();
+    if (!token || !booking || role !== "STUDENT") return;
+
+    setReviewBusy(true);
+    setReviewMessage("");
+    setError("");
+
+    try {
+      const created = await createReview(token, {
+        bookingId: booking.id,
+        rating: reviewRating,
+        comment: reviewComment,
+      });
+      const nextReview = {
+        id: created.id,
+        rating: created.rating,
+        comment: created.comment,
+        createdAt: created.createdAt,
+      };
+      setReview(nextReview);
+      setBooking({ ...booking, review: nextReview });
+      setReviewComment("");
+      setReviewRating(5);
+      setNotice("Cảm ơn bạn đã gửi đánh giá buổi học.");
+    } catch (requestError) {
+      setReviewMessage(requestError instanceof Error ? requestError.message : "Không thể gửi đánh giá.");
+    } finally {
+      setReviewBusy(false);
     }
   }
 
@@ -243,9 +285,9 @@ export function BookingDetailScreen({ id }: { id: string }) {
         <div className="mx-auto max-w-[720px] pt-12">
           <FeedbackState
             action={
-              <Link className="inline-flex" href="/bookings">
+              <Link className="inline-flex" href={bookingsBackHref}>
                 <span className="rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-white px-4 py-2.5 text-sm font-bold text-[var(--primary)]">
-                  Quay lại lịch học
+                  {bookingsBackLabel}
                 </span>
               </Link>
             }
@@ -266,6 +308,8 @@ export function BookingDetailScreen({ id }: { id: string }) {
   const canConfirm = role === "TUTOR" && booking.status === "PENDING";
   const canPay = role === "STUDENT" && booking.status === "CONFIRMED" && (!payment || payment.status === "PENDING");
   const canComplete = role === "TUTOR" && paid && booking.status === "CONFIRMED" && new Date(booking.startsAt) <= new Date();
+  const canReview = role === "STUDENT" && booking.status === "COMPLETED" && !review;
+  const showStudentReview = role === "STUDENT" && booking.status === "COMPLETED";
   const showCompleteAction = role === "TUTOR" && (booking.status === "CONFIRMED" || booking.status === "COMPLETED");
   const completeReason = getCompleteUnavailableReason(booking, paid);
   const serviceFee = payment ? Number(payment.platformFeeAmount) : 0;
@@ -279,9 +323,9 @@ export function BookingDetailScreen({ id }: { id: string }) {
       <div className="flex w-full flex-col gap-6">
         <header className="flex flex-col gap-4">
           <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-            <Link className="inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)] transition hover:text-[var(--primary-container)]" href="/bookings">
+            <Link className="inline-flex items-center gap-1 text-sm font-bold text-[var(--primary)] transition hover:text-[var(--primary-container)]" href={bookingsBackHref}>
               <Icon className="text-base" name="arrow_back" />
-              Quay lại lịch học
+              {bookingsBackLabel}
             </Link>
             <p className="text-sm font-semibold text-[var(--on-surface-variant)]">
               Mã lịch học: <span className="font-black text-[var(--primary)]">#{booking.id.slice(0, 8).toUpperCase()}</span>
@@ -383,6 +427,20 @@ export function BookingDetailScreen({ id }: { id: string }) {
               serviceFee={serviceFee}
               sessionFee={sessionFee}
             />
+
+            {showStudentReview ? (
+              <LessonReviewCard
+                canReview={canReview}
+                comment={reviewComment}
+                isBusy={reviewBusy}
+                message={reviewMessage}
+                onCommentChange={setReviewComment}
+                onRatingChange={setReviewRating}
+                onSubmit={handleCreateReview}
+                rating={reviewRating}
+                review={review}
+              />
+            ) : null}
 
             {showCompleteAction ? (
               <Card tone={booking.status === "COMPLETED" ? "subtle" : "default"}>
@@ -656,6 +714,121 @@ function Participant({ avatarUrl, label, name, subtitle }: { avatarUrl?: null | 
         <p className="truncate text-lg font-black">{name}</p>
         <p className="truncate text-sm text-[var(--on-surface-variant)]">{subtitle}</p>
       </div>
+    </div>
+  );
+}
+
+function LessonReviewCard({
+  canReview,
+  comment,
+  isBusy,
+  message,
+  onCommentChange,
+  onRatingChange,
+  onSubmit,
+  rating,
+  review,
+}: {
+  canReview: boolean;
+  comment: string;
+  isBusy: boolean;
+  message: string;
+  onCommentChange: (value: string) => void;
+  onRatingChange: (value: number) => void;
+  onSubmit: () => void;
+  rating: number;
+  review: Booking["review"];
+}) {
+  return (
+    <Card>
+      <CardTitle className="flex items-center gap-2">
+        <Icon className="text-[var(--secondary)]" fill name="star" />
+        Đánh giá buổi học
+      </CardTitle>
+      {review ? (
+        <div className="mt-4 space-y-4">
+          <div className="rounded-[var(--radius-md)] border border-[var(--status-success-border)] bg-[var(--status-success-bg)] p-4 text-[var(--status-success-text)]">
+            <div className="flex items-center justify-between gap-3">
+              <Stars rating={review.rating} />
+              <span className="text-xs font-bold">{formatDateTime(review.createdAt)}</span>
+            </div>
+            <p className="mt-3 text-sm font-semibold leading-6">
+              {review.comment || "Bạn đã gửi đánh giá sao cho buổi học này."}
+            </p>
+          </div>
+          <p className="text-xs font-semibold leading-5 text-[var(--on-surface-variant)]">
+            Mỗi buổi học chỉ được đánh giá một lần để giữ phản hồi nhất quán.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-4">
+          <p className="text-sm leading-6 text-[var(--on-surface-variant)]">
+            Chia sẻ trải nghiệm của bạn sau buổi học. Đánh giá sẽ hiển thị công khai trên hồ sơ gia sư.
+          </p>
+          <StarRatingInput disabled={!canReview || isBusy} onChange={onRatingChange} value={rating} />
+          <textarea
+            className="min-h-28 w-full resize-y rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-white px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)] focus:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!canReview || isBusy}
+            maxLength={1000}
+            onChange={(event) => onCommentChange(event.target.value)}
+            placeholder="Bạn hài lòng điều gì? Gia sư có chuẩn bị tốt, giải thích dễ hiểu không?"
+            value={comment}
+          />
+          <Button className="w-full" disabled={!canReview} isLoading={isBusy} leftIcon={<Icon name="rate_review" />} onClick={onSubmit}>
+            Gửi đánh giá
+          </Button>
+          {message ? <p className="text-sm font-semibold text-[var(--error)]">{message}</p> : null}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function StarRatingInput({ disabled, onChange, value }: { disabled: boolean; onChange: (value: number) => void; value: number }) {
+  const [hoverRating, setHoverRating] = useState(0);
+  const previewRating = hoverRating || value;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-bold text-[var(--on-surface-variant)]">Số sao</span>
+        <span className="rounded-[var(--radius-full)] bg-[var(--surface-container-high)] px-3 py-1 text-xs font-black text-[var(--primary)]">
+          {value} sao
+        </span>
+      </div>
+      <div className="grid grid-cols-5 gap-2" onMouseLeave={() => setHoverRating(0)}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            aria-label={`${star} sao`}
+            aria-pressed={value === star}
+            className={[
+              "inline-flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] border px-2 py-2 text-[var(--secondary)] transition focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-60",
+              star <= previewRating
+                ? "border-[var(--secondary)] bg-[var(--secondary-container)] text-[var(--on-secondary-container)]"
+                : "border-[var(--outline-variant)] bg-white hover:bg-[var(--surface-container-high)]",
+            ].join(" ")}
+            disabled={disabled}
+            key={star}
+            onClick={() => onChange(star)}
+            onFocus={() => setHoverRating(star)}
+            onMouseEnter={() => setHoverRating(star)}
+            type="button"
+          >
+            <Icon className="text-[22px]" fill={star <= previewRating} name="star" />
+            <span className="text-[11px] font-black leading-none">{star}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Stars({ rating }: { rating: number }) {
+  return (
+    <div aria-label={`${rating} sao`} className="flex shrink-0 items-center gap-0.5 text-[var(--secondary)]">
+      {[0, 1, 2, 3, 4].map((index) => (
+        <Icon fill={index < rating} key={index} name="star" />
+      ))}
     </div>
   );
 }

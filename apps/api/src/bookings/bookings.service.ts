@@ -33,6 +33,7 @@ const bookingInclude = {
   },
   availabilitySlot: true,
   payment: true,
+  review: true,
 } satisfies Prisma.BookingInclude;
 
 type BookingWithRelations = Prisma.BookingGetPayload<{
@@ -379,7 +380,7 @@ export class BookingsService {
           type: NotificationType.BOOKING_COMPLETED,
           title: 'Buổi học đã hoàn thành',
           body: `Buổi học với ${booking.tutorProfile.user.fullName} đã hoàn thành. Bạn có thể gửi đánh giá.`,
-          actionUrl: `/tutors/${booking.tutorProfileId}`,
+          actionUrl: `/bookings/${booking.id}`,
         },
         {
           userId: booking.tutorProfile.userId,
@@ -451,6 +452,14 @@ export class BookingsService {
             refundReason: booking.payment.refundReason,
             revenueReleasedAt:
               booking.payment.revenueReleasedAt?.toISOString() ?? null,
+          }
+        : null,
+      review: booking.review
+        ? {
+            id: booking.review.id,
+            rating: booking.review.rating,
+            comment: booking.review.comment,
+            createdAt: booking.review.createdAt.toISOString(),
           }
         : null,
       createdAt: booking.createdAt.toISOString(),

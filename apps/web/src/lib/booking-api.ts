@@ -41,6 +41,12 @@ export type Booking = {
     refundReason: string | null;
     revenueReleasedAt: string | null;
   } | null;
+  review: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+  } | null;
   createdAt: string;
 };
 
