@@ -300,7 +300,10 @@ export function TutorScheduleScreen() {
   useEffect(() => {
     if (!hasMounted) return;
     const token = getAccessToken();
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
     const weekStarts = weekStartsBetween(range.start, range.end);
     Promise.all([

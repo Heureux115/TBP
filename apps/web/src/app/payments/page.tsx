@@ -24,8 +24,10 @@ import { clearTokens, getAccessToken } from "@/lib/auth-storage";
 import { getMyPayments, mockConfirmPayment, type Payment, type PaymentStatus, type PayoutStatus } from "@/lib/payment-api";
 import { createSearchMatcher } from "@/lib/search-text";
 import { useHasMounted } from "@/lib/use-has-mounted";
+import { createWithdrawal, getMyWallet, type TutorWallet, type Withdrawal } from "@/lib/wallet-api";
 
 type StatusFilter = "ALL" | PaymentStatus;
+type WithdrawalStatus = Withdrawal["status"];
 
 const statusMeta: Record<PaymentStatus, { description: string; label: string; tone: StatusTone }> = {
   CANCELLED: { description: "Giao dịch đã bị hủy, không cần thanh toán thêm.", label: "Đã hủy", tone: "danger" },
@@ -40,6 +42,14 @@ const payoutMeta: Record<PayoutStatus, { label: string; tone: StatusTone }> = {
   HELD: { label: "Đang giữ", tone: "warning" },
   REFUNDED: { label: "Đã hoàn", tone: "info" },
   RELEASED: { label: "Đã mở khóa", tone: "success" },
+};
+
+const withdrawalMeta: Record<WithdrawalStatus, { label: string; tone: StatusTone }> = {
+  CANCELLED: { label: "Đã hủy", tone: "danger" },
+  PAID: { label: "Đã thanh toán", tone: "success" },
+  PENDING: { label: "Chờ xử lý", tone: "warning" },
+  PROCESSING: { label: "Đang xử lý", tone: "info" },
+  REJECTED: { label: "Từ chối", tone: "danger" },
 };
 
 function formatMoney(value: string | number, currency = "VND") {
@@ -62,15 +72,32 @@ function formatShortDate(value: string) {
   return new Date(value).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+function maskAccount(value: string) {
+  return value.length <= 4 ? value : `${"*".repeat(value.length - 4)}${value.slice(-4)}`;
+}
+
+function normalizeMoneyInput(value: string) {
+  return value.replace(/[.,\s]/g, "");
+}
+
 export default function PaymentsPage() {
   const hasMounted = useHasMounted();
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [wallet, setWallet] = useState<TutorWallet | null>(null);
+  const [withdrawalForm, setWithdrawalForm] = useState({
+    amount: "",
+    bankName: "",
+    bankAccountNumber: "",
+    bankAccountName: "",
+  });
+  const [walletMessage, setWalletMessage] = useState("");
   const [status, setStatus] = useState<StatusFilter>("ALL");
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [payingId, setPayingId] = useState("");
   const [pendingPayment, setPendingPayment] = useState<Payment | null>(null);
 
@@ -84,9 +111,12 @@ export default function PaymentsPage() {
     }
 
     Promise.all([getCurrentUser(token), getMyPayments(token)])
-      .then(([current, items]) => {
+      .then(async ([current, items]) => {
         setUser(current.user);
         setPayments(items);
+        if (current.user.role === "TUTOR") {
+          setWallet(await getMyWallet(token));
+        }
       })
       .catch((requestError) => {
         clearTokens();
@@ -104,15 +134,19 @@ export default function PaymentsPage() {
     });
   }, [payments, query, status]);
 
-  const totalSpent = payments
-    .filter((payment) => payment.status === "PAID")
-    .reduce((total, payment) => total + Number(payment.amount), 0);
-  const completedCount = payments.filter((payment) => payment.status === "PAID").length;
+  const paidPayments = payments.filter((payment) => payment.status === "PAID");
+  const totalSpent = paidPayments.reduce((total, payment) => total + Number(payment.amount), 0);
+  const tutorPaidPayoutTotal = paidPayments.reduce((total, payment) => total + Number(payment.tutorPayoutAmount), 0);
+  const heldPayoutTotal = paidPayments
+    .filter((payment) => payment.payoutStatus === "HELD")
+    .reduce((total, payment) => total + Number(payment.tutorPayoutAmount), 0);
+  const completedCount = paidPayments.length;
   const pendingCount = payments.filter((payment) => payment.status === "PENDING").length;
   const refundedTotal = payments
     .filter((payment) => payment.status === "REFUNDED")
     .reduce((total, payment) => total + Number(payment.amount), 0);
   const hasFilters = Boolean(query.trim()) || status !== "ALL";
+  const isTutor = user?.role === "TUTOR";
 
   function clearFilters() {
     setQuery("");
@@ -161,6 +195,35 @@ export default function PaymentsPage() {
       router.push(`/payments/failed?paymentId=${paymentId}`);
     } finally {
       setPayingId("");
+    }
+  }
+
+  async function handleWithdrawal() {
+    const token = getAccessToken();
+    if (!token || user?.role !== "TUTOR") return;
+
+    setIsWithdrawing(true);
+    setWalletMessage("");
+    setError("");
+    try {
+      const updatedWallet = await createWithdrawal(token, {
+        amount: normalizeMoneyInput(withdrawalForm.amount),
+        bankAccountName: withdrawalForm.bankAccountName.trim(),
+        bankAccountNumber: withdrawalForm.bankAccountNumber.trim(),
+        bankName: withdrawalForm.bankName.trim(),
+      });
+      setWallet(updatedWallet);
+      setWithdrawalForm({
+        amount: "",
+        bankName: "",
+        bankAccountNumber: "",
+        bankAccountName: "",
+      });
+      setWalletMessage("Yêu cầu rút tiền đã được ghi nhận.");
+    } catch (requestError) {
+      setWalletMessage(requestError instanceof Error ? requestError.message : "Không thể tạo yêu cầu rút tiền.");
+    } finally {
+      setIsWithdrawing(false);
     }
   }
 
@@ -213,11 +276,33 @@ export default function PaymentsPage() {
           ) : null}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard icon="account_balance_wallet" label="Tổng đã thanh toán" note={`${completedCount} giao dịch`} tone="success" value={formatMoney(totalSpent)} />
-            <MetricCard icon="pending_actions" label="Chờ thanh toán" note="Cần xử lý" tone="warning" value={pendingCount} />
-            <MetricCard icon="assignment_return" label="Đã hoàn tiền" note="Theo xử lý hiện tại" tone="info" value={formatMoney(refundedTotal)} />
-            <MetricCard icon="receipt_long" label="Tổng giao dịch" note={`${filteredPayments.length} đang hiển thị`} tone="neutral" value={payments.length} />
+            {isTutor ? (
+              <>
+                <MetricCard icon="account_balance_wallet" label="Có thể rút" note="Theo số dư ví gia sư" tone="success" value={formatMoney(wallet?.availableBalance || "0", wallet?.currency)} />
+                <MetricCard icon="lock" label="Đang giữ" note="Chờ hoàn thành buổi học" tone="warning" value={formatMoney(heldPayoutTotal)} />
+                <MetricCard icon="payments" label="Payout đã thanh toán" note={`${completedCount} giao dịch paid`} tone="info" value={formatMoney(tutorPaidPayoutTotal)} />
+                <MetricCard icon="receipt_long" label="Tổng giao dịch" note={`${filteredPayments.length} đang hiển thị`} tone="neutral" value={payments.length} />
+              </>
+            ) : (
+              <>
+                <MetricCard icon="account_balance_wallet" label="Tổng đã thanh toán" note={`${completedCount} giao dịch`} tone="success" value={formatMoney(totalSpent)} />
+                <MetricCard icon="pending_actions" label="Chờ thanh toán" note="Cần xử lý" tone="warning" value={pendingCount} />
+                <MetricCard icon="assignment_return" label="Đã hoàn tiền" note="Theo xử lý hiện tại" tone="info" value={formatMoney(refundedTotal)} />
+                <MetricCard icon="receipt_long" label="Tổng giao dịch" note={`${filteredPayments.length} đang hiển thị`} tone="neutral" value={payments.length} />
+              </>
+            )}
           </section>
+
+          {user?.role === "TUTOR" ? (
+            <WithdrawalPanel
+              form={withdrawalForm}
+              isBusy={isWithdrawing}
+              message={walletMessage}
+              onChange={(field, value) => setWithdrawalForm((current) => ({ ...current, [field]: value }))}
+              onSubmit={handleWithdrawal}
+              wallet={wallet}
+            />
+          ) : null}
 
           <Card className="p-4 sm:p-5">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_auto] lg:items-end">
@@ -372,6 +457,168 @@ function PaymentStatus({ payment }: { payment: Payment }) {
       </p>
     </div>
   );
+}
+
+function WithdrawalPanel({
+  form,
+  isBusy,
+  message,
+  onChange,
+  onSubmit,
+  wallet,
+}: {
+  form: {
+    amount: string;
+    bankName: string;
+    bankAccountNumber: string;
+    bankAccountName: string;
+  };
+  isBusy: boolean;
+  message: string;
+  onChange: (field: "amount" | "bankName" | "bankAccountNumber" | "bankAccountName", value: string) => void;
+  onSubmit: () => void;
+  wallet: TutorWallet | null;
+}) {
+  const availableBalance = Number(wallet?.availableBalance || 0);
+  const withdrawals = wallet?.withdrawals ?? [];
+  const rawAmount = form.amount.trim();
+  const normalizedAmount = normalizeMoneyInput(rawAmount);
+  const amount = Number(normalizedAmount);
+  const amountHasAllowedSeparators = /^[\d.,\s]+$/.test(rawAmount);
+  const amountIsNumeric = /^\d+$/.test(normalizedAmount);
+  const withdrawalIssues = [
+    !wallet ? "Đang tải ví gia sư." : "",
+    wallet && availableBalance <= 0 ? "Số dư khả dụng chưa đủ để rút tiền." : "",
+    !rawAmount ? "Nhập số tiền muốn rút." : "",
+    rawAmount && !amountHasAllowedSeparators ? "Số tiền chỉ dùng chữ số, dấu chấm, dấu phẩy hoặc khoảng trắng." : "",
+    rawAmount && amountHasAllowedSeparators && !amountIsNumeric ? "Số tiền chưa hợp lệ." : "",
+    amountIsNumeric && amount <= 0 ? "Số tiền rút phải lớn hơn 0." : "",
+    amountIsNumeric && amount > availableBalance ? `Số tiền rút không được vượt quá số dư ${formatMoney(availableBalance, wallet?.currency)}.` : "",
+    form.bankName.trim().length < 2 ? "Nhập tên ngân hàng từ 2 ký tự." : "",
+    form.bankAccountNumber.trim().length < 4 ? "Nhập số tài khoản từ 4 ký tự." : "",
+    form.bankAccountName.trim().length < 2 ? "Nhập tên chủ tài khoản từ 2 ký tự." : "",
+  ].filter(Boolean);
+  const canSubmit = !isBusy && withdrawalIssues.length === 0;
+  const disabledReason = withdrawalIssues[0];
+
+  return (
+    <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+      <Card className="p-4 sm:p-5">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[var(--on-surface-variant)]">
+              <Icon className="text-[18px]" name="account_balance_wallet" />
+              Ví gia sư
+            </p>
+            <h2 className="tc-text-safe mt-2 text-2xl font-black text-[var(--primary)]">{formatMoney(wallet?.availableBalance || "0", wallet?.currency)}</h2>
+            <p className="mt-1 text-sm font-semibold text-[var(--on-surface-variant)]">
+              Số dư đã mở khóa sau khi buổi học hoàn tất. Yêu cầu rút sẽ chuyển sang hàng chờ admin xử lý.
+            </p>
+          </div>
+          <div className="rounded-[var(--radius-md)] bg-[var(--surface-container-low)] px-4 py-3 text-sm font-semibold text-[var(--on-surface-variant)]">
+            <p className="text-xs font-black uppercase tracking-wide">Đang chờ / đã rút</p>
+            <p className="mt-1 text-lg font-black text-[var(--on-surface)]">{formatMoney(wallet?.withdrawnBalance || "0", wallet?.currency)}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <WithdrawalField inputMode="numeric" label="Số tiền" onChange={(value) => onChange("amount", value)} placeholder="500000" value={form.amount} />
+          <WithdrawalField label="Ngân hàng" onChange={(value) => onChange("bankName", value)} placeholder="VCB" value={form.bankName} />
+          <WithdrawalField inputMode="numeric" label="Số tài khoản" onChange={(value) => onChange("bankAccountNumber", value)} placeholder="0123456789" value={form.bankAccountNumber} />
+          <WithdrawalField label="Tên chủ tài khoản" onChange={(value) => onChange("bankAccountName", value)} placeholder="NGUYEN VAN A" value={form.bankAccountName} />
+        </div>
+
+        <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-3">
+          <p className="text-xs font-black uppercase tracking-wide text-[var(--on-surface-variant)]">Điều kiện rút tiền</p>
+          {withdrawalIssues.length ? (
+            <ul className="mt-2 space-y-1.5 text-sm font-semibold text-[var(--on-surface-variant)]">
+              {withdrawalIssues.map((issue) => (
+                <li className="flex gap-2" key={issue}>
+                  <Icon className="mt-0.5 text-[18px] text-[var(--status-warning-text)]" name="info" />
+                  <span>{issue}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 flex gap-2 text-sm font-bold text-[var(--status-success-text)]">
+              <Icon className="text-[18px]" name="check_circle" />
+              Đủ điều kiện gửi yêu cầu rút tiền.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button disabled={!canSubmit} isLoading={isBusy} leftIcon={<Icon name="account_balance" />} onClick={onSubmit} title={disabledReason || "Gửi yêu cầu rút tiền"}>
+            Yêu cầu rút tiền
+          </Button>
+          {message ? <p className="text-sm font-semibold text-[var(--on-surface-variant)]">{message}</p> : null}
+        </div>
+      </Card>
+
+      <Card className="p-4 sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-black text-[var(--on-surface)]">Lịch sử rút tiền</h2>
+            <p className="mt-1 text-sm text-[var(--on-surface-variant)]">10 yêu cầu gần nhất</p>
+          </div>
+          <Icon className="text-[var(--primary)]" name="receipt_long" />
+        </div>
+        {withdrawals.length ? (
+          <div className="space-y-3">
+            {withdrawals.map((withdrawal) => (
+              <article className="rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-white p-3" key={withdrawal.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-black text-[var(--on-surface)]">{formatMoney(withdrawal.amount, withdrawal.currency)}</p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--on-surface-variant)]">
+                      {withdrawal.bankName} · {maskAccount(withdrawal.bankAccountNumber)}
+                    </p>
+                  </div>
+                  <WithdrawalStatusChip status={withdrawal.status} />
+                </div>
+                <p className="mt-2 text-xs font-semibold text-[var(--on-surface-variant)]">Gửi lúc {formatDate(withdrawal.requestedAt)}</p>
+                {withdrawal.rejectionReason ? <p className="mt-2 text-xs font-bold text-[var(--status-danger-text)]">{withdrawal.rejectionReason}</p> : null}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <FeedbackState className="min-h-[220px]" description="Khi bạn gửi yêu cầu rút tiền, trạng thái xử lý sẽ xuất hiện tại đây." icon="account_balance" title="Chưa có yêu cầu rút tiền" />
+        )}
+      </Card>
+    </section>
+  );
+}
+
+function WithdrawalField({
+  inputMode,
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  inputMode?: "decimal" | "email" | "numeric" | "search" | "tel" | "text" | "url";
+  label: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1.5 block text-xs font-bold text-[var(--on-surface-variant)]">{label}</span>
+      <input
+        className="w-full rounded-[var(--radius-md)] border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-2.5 text-sm font-semibold text-[var(--on-surface)] outline-none transition focus:border-[var(--primary)] focus:shadow-[var(--focus-ring)]"
+        inputMode={inputMode}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        value={value}
+      />
+    </label>
+  );
+}
+
+function WithdrawalStatusChip({ status }: { status: WithdrawalStatus }) {
+  const meta = withdrawalMeta[status];
+  return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
 }
 
 function PayoutStatusChip({ status }: { status: PayoutStatus }) {

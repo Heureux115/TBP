@@ -9,10 +9,57 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { Booking, confirmBooking, getMyBookings } from "@/lib/booking-api";
 import { ensureConversation } from "@/lib/message-api";
 import { getMyPayments, Payment } from "@/lib/payment-api";
+import { getMyTutorAvailability, TutorAvailabilitySlot } from "@/lib/tutor-api";
 import { useHasMounted } from "@/lib/use-has-mounted";
+
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function startOfWeek(date: Date) {
+  const next = startOfDay(date);
+  const day = next.getDay() || 7;
+  next.setDate(next.getDate() - day + 1);
+  return next;
+}
+
+function dateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function weekStartsForScheduleWindow() {
+  const weeks: string[] = [];
+  const cursor = startOfWeek(new Date());
+
+  for (let index = 0; index < 6; index += 1) {
+    weeks.push(dateKey(cursor));
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  return weeks;
+}
+
+async function fetchAvailabilityWindow(token: string) {
+  const availabilityItems = await Promise.all(weekStartsForScheduleWindow().map((weekStart) => getMyTutorAvailability(token, weekStart)));
+  const slotMap = new Map<string, TutorAvailabilitySlot>();
+
+  for (const availability of availabilityItems) {
+    for (const slot of availability.slots) slotMap.set(slot.id, slot);
+  }
+
+  return Array.from(slotMap.values());
+}
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatSlotTimeRange(slot: TutorAvailabilitySlot) {
+  const start = new Date(slot.startsAt);
+  const end = new Date(slot.endsAt);
+  return `${start.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - ${end.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function formatTimeRange(booking: Booking) {
@@ -46,6 +93,7 @@ export function TutorBookingRequestsScreen() {
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [payments, setPayments] = useState<Record<string, Payment>>({});
+  const [availabilitySlots, setAvailabilitySlots] = useState<TutorAvailabilitySlot[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
@@ -59,25 +107,33 @@ export function TutorBookingRequestsScreen() {
   const upcomingBookings = bookings
     .filter((booking) => booking.status !== "CANCELLED" && new Date(booking.endsAt) >= new Date())
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  const upcomingSlots = availabilitySlots
+    .filter((slot) => !slot.isBooked && new Date(slot.endsAt) >= new Date())
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
   const paidTotal = Object.values(payments)
     .filter((payment) => payment.status === "PAID")
     .reduce((total, payment) => total + Number(payment.amount), 0);
 
   async function reload(token: string) {
-    const [bookingItems, paymentItems] = await Promise.all([getMyBookings(token), getMyPayments(token)]);
+    const [bookingItems, paymentItems, slots] = await Promise.all([getMyBookings(token), getMyPayments(token), fetchAvailabilityWindow(token)]);
     setBookings(bookingItems);
     setPayments(toPaymentMap(paymentItems));
+    setAvailabilitySlots(slots);
   }
 
   useEffect(() => {
     if (!hasMounted) return;
     const token = getAccessToken();
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
-    Promise.all([getMyBookings(token), getMyPayments(token)])
-      .then(([bookingItems, paymentItems]) => {
+    Promise.all([getMyBookings(token), getMyPayments(token), fetchAvailabilityWindow(token)])
+      .then(([bookingItems, paymentItems, slots]) => {
         setBookings(bookingItems);
         setPayments(toPaymentMap(paymentItems));
+        setAvailabilitySlots(slots);
       })
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Không thể tải dữ liệu quản lý lịch."))
       .finally(() => setLoading(false));
@@ -138,12 +194,13 @@ export function TutorBookingRequestsScreen() {
         <div className="min-w-0 space-y-6">
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
             <MiniMetric icon="pending_actions" label="Yêu cầu chờ duyệt" value={`${requests.length}`} tone="warning" />
-            <MiniMetric icon="school" label="Buổi dạy sắp tới" value={`${upcomingBookings.length}`} />
+            <MiniMetric icon="event_available" label="Khung giờ trống" value={`${upcomingSlots.length}`} />
             <MiniMetric icon="payments" label="Đã thanh toán" value={formatMoney(paidTotal)} tone="success" />
           </div>
           <main className="min-w-0 space-y-6">
             <RequestsPanel busyId={busyId} onConfirm={handleConfirm} onMessage={handleMessage} onSelect={setSelectedId} payments={payments} requests={requests} selected={selected} />
             <UpcomingPanel bookings={upcomingBookings.slice(0, 6)} payments={payments} />
+            <OpenSlotsPanel slots={upcomingSlots.slice(0, 8)} />
           </main>
         </div>
       )}
@@ -269,6 +326,41 @@ function RequestDetail({ booking, busy, onConfirm, onMessage, payment }: { booki
           <Icon name="arrow_forward" />
         </Link>
       </div>
+    </Card>
+  );
+}
+
+function OpenSlotsPanel({ slots }: { slots: TutorAvailabilitySlot[] }) {
+  return (
+    <Card>
+      <CardHeader
+        action={
+          <Link className="text-sm font-bold text-[var(--primary)] hover:underline" href="/tutor/schedule">
+            Mở lịch dạy
+          </Link>
+        }
+      >
+        <CardTitle>Khung giờ trống sắp tới</CardTitle>
+        <CardDescription>Các khung giờ học viên có thể đặt trong 6 tuần tới.</CardDescription>
+      </CardHeader>
+      {slots.length ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          {slots.map((slot) => (
+            <article className="rounded-[var(--radius-md)] border border-[var(--status-success-border)] bg-[var(--status-success-bg)] p-4 text-[var(--status-success-text)]" key={slot.id}>
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="tc-text-safe font-black">Lịch trống</h3>
+                  <p className="mt-2 text-sm font-bold">{formatDate(slot.startsAt)}</p>
+                  <p className="mt-1 text-sm font-semibold">{formatSlotTimeRange(slot)}</p>
+                </div>
+                <StatusBadge tone="success">Có thể đặt</StatusBadge>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <FeedbackState className="min-h-[220px]" description="Chưa có khung giờ trống nào trong 6 tuần tới. Mở thêm lịch để học viên có thể đặt." icon="event_available" title="Chưa có lịch trống sắp tới" />
+      )}
     </Card>
   );
 }
